@@ -2020,6 +2020,23 @@ function mostrarReview(dados) {
 
     // Auto-expande cards com pendência
     if (temPend) setTimeout(() => div.classList.add('expanded'), 50);
+
+    // Auto-trigger CEP lookup se CEP preenchido mas endereço incompleto
+    if (ent.campos.cep && (!ent.campos.rua || !ent.campos.bairro)) {
+      setTimeout(() => {
+        buscarCEP(ent.campos.cep, (addrViaCep) => {
+          ['rua','bairro','cid','uf'].forEach(key => {
+            const el = document.getElementById('field_' + ent.id + '_' + key);
+            if (el && !el.value.trim()) {
+              el.value = addrViaCep[key] || '';
+              el.classList.remove('missing');
+              ent.campos[key] = el.value;
+            }
+          });
+          atualizarBadge(ent.id);
+        });
+      }, 200);
+    }
   });
 
   irTela('tela-review');
@@ -2257,15 +2274,17 @@ async function buscarCEP(cep, callbacks) {
   if (nums.length !== 8) return;
   try {
     const resp = await fetch(`https://viacep.com.br/ws/${nums}/json/`);
+    if (!resp.ok) { console.warn('ViaCEP HTTP', resp.status); return; }
     const data = await resp.json();
-    if (data.erro) return;
+    if (data.erro) { console.warn('ViaCEP: CEP não encontrado'); return; }
+    // Always call callback even if some fields are empty (rural CEPs have no logradouro)
     callbacks({
       rua:    (data.logradouro || '').toUpperCase(),
       bairro: (data.bairro     || '').toUpperCase(),
       cid:    (data.localidade || '').toUpperCase(),
       uf:     (data.uf         || '').toUpperCase(),
     });
-  } catch(e) {}
+  } catch(e) { console.warn('ViaCEP erro:', e.message); }
 }
 
 // Busca CEP nos campos do formulário fixo (tela-3)
@@ -2493,6 +2512,22 @@ async function compEndHandleFile(input, entId) {
         }
       }
     });
+
+    // Auto-trigger CEP lookup to fill any remaining address fields
+    const cepEl = document.getElementById('field_' + entId + '_cep');
+    if (cepEl && cepEl.value) {
+      buscarCEP(cepEl.value, (addrViaCep) => {
+        ['rua','bairro','cid','uf'].forEach(key => {
+          const el = document.getElementById('field_' + entId + '_' + key);
+          if (el && !el.value.trim()) {
+            el.value = addrViaCep[key] || '';
+            el.classList.remove('missing');
+            if (ent) ent.campos[key] = el.value;
+          }
+        });
+        atualizarBadge(entId);
+      });
+    }
 
     // Atualiza badge de campos faltando
     if (ent) atualizarBadge(entId);
