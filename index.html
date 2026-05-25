@@ -337,6 +337,30 @@
 
 
 
+    /* COMPROVANTE DE ENDEREÇO */
+    .comp-end-btn {
+      display: flex; align-items: center; gap: 6px;
+      padding: 6px 12px; border: 1px dashed var(--border);
+      border-radius: 6px; background: white; color: var(--muted);
+      font-size: 11px; font-weight: 600; cursor: pointer;
+      font-family: inherit; margin-top: 10px; transition: all .15s;
+      width: 100%;
+    }
+    .comp-end-btn:hover { border-color: var(--purple); color: var(--purple); background: var(--purple-dim); }
+    .comp-end-btn.loaded { border-color: var(--green); color: var(--green); background: var(--green-light); }
+    .comp-end-btn:disabled { opacity:.5; cursor:not-allowed; }
+    .comp-end-zone {
+      display: none; margin-top: 8px; padding: 10px;
+      border: 1px dashed #93c5fd; border-radius: 8px; background: #eff6ff;
+    }
+    .comp-end-zone.open { display: block; }
+    .comp-end-zone label {
+      display: flex; align-items: center; gap: 8px; cursor: pointer;
+      font-size: 12px; color: #1e40af; font-weight: 600;
+    }
+    .comp-end-zone label input[type=file] { display: none; }
+    .comp-end-status { font-size: 11px; margin-top: 6px; color: var(--muted); }
+
     /* EXPANDABLE CARDS */
     .entity-card { cursor: default; flex-wrap: wrap; }
     .entity-card-header {
@@ -350,11 +374,13 @@
     }
     .entity-card.expanded .expand-arrow { transform: rotate(180deg); }
     .entity-card-fields {
-      display: none; width: 100%; margin-top: 14px;
-      padding-top: 14px; border-top: 1px solid var(--border);
       display: none;
+      width: 100%;
+      margin-top: 14px;
+      padding-top: 14px;
+      border-top: 1px solid var(--border);
     }
-    .entity-card.expanded .entity-card-fields { display: block; }
+    .entity-card.expanded .entity-card-fields { display: block !important; }
     .fields-grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
@@ -1976,6 +2002,18 @@ function mostrarReview(dados) {
       <div class="entity-card-fields">
         ${buildFieldsGrid(ent)}
         ${ent.id === 'men' ? buildMesmoEndCheck(ent) : ''}
+        <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border);">
+          <button class="comp-end-btn" id="comp-btn-${ent.id}" onclick="toggleCompEnd('${ent.id}')">
+            📄 Carregar comprovante de endereço
+          </button>
+          <div class="comp-end-zone" id="comp-zone-${ent.id}">
+            <label>
+              <input type="file" accept="application/pdf,image/*" onchange="compEndHandleFile(this,'${ent.id}')">
+              📎 Clique para selecionar (PDF ou imagem)
+            </label>
+            <div class="comp-end-status" id="comp-status-${ent.id}"></div>
+          </div>
+        </div>
       </div>
     `;
     container.appendChild(div);
@@ -2377,6 +2415,107 @@ function swapMenorRep() {
 }
 
 // ============================================================
+
+// ============================================================
+// COMPROVANTE DE ENDEREÇO — extração por IA
+// ============================================================
+function toggleCompEnd(entId) {
+  const zone = document.getElementById('comp-zone-' + entId);
+  const btn  = document.getElementById('comp-btn-' + entId);
+  if (!zone) return;
+  zone.classList.toggle('open');
+  if (btn) btn.textContent = zone.classList.contains('open')
+    ? '✕ Fechar comprovante'
+    : '📄 Carregar comprovante de endereço';
+}
+
+async function compEndHandleFile(input, entId) {
+  const file = input.files[0];
+  if (!file) return;
+
+  const statusEl = document.getElementById('comp-status-' + entId);
+  const btnEl    = document.getElementById('comp-btn-' + entId);
+  if (statusEl) statusEl.textContent = '⏳ Lendo comprovante...';
+  if (btnEl) btnEl.disabled = true;
+
+  try {
+    let textoOuBase64 = null;
+    let mimeType = file.type;
+    let isImage = mimeType.startsWith('image/');
+
+    if (!isImage && mimeType === 'application/pdf') {
+      // Extrai texto do PDF
+      const texto = await extrairTextoPDF(file);
+      textoOuBase64 = texto;
+    } else if (isImage) {
+      // Envia imagem direto
+      textoOuBase64 = await new Promise((res, rej) => {
+        const r = new FileReader();
+        r.onload = e => res(e.target.result.split(',')[1]);
+        r.onerror = rej;
+        r.readAsDataURL(file);
+      });
+    } else {
+      throw new Error('Formato não suportado. Use PDF ou imagem.');
+    }
+
+    // Monta payload pro worker
+    const payload = isImage
+      ? { docType: 'COMP_END', imagem: { base64: textoOuBase64, mimeType } }
+      : { docType: 'COMP_END', texto: textoOuBase64 };
+
+    const resp = await fetch('https://sparkling-grass-bb3d.bolhasdeluz.workers.dev', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    if (!resp.ok) throw new Error('Erro ' + resp.status);
+    const data = await resp.json();
+    if (!data.choices?.[0]) throw new Error(data.error?.message || 'Sem resposta');
+
+    let raw = data.choices[0].message.content.replace(/```json|```/g,'').trim();
+    const addr = JSON.parse(raw);
+
+    // Preenche campos do card
+    const ent = entidadesExtraidas.find(e => e.id === entId);
+    const fieldsToFill = ['cep','rua','num','comp','bairro','cid','uf'];
+    let filled = 0;
+
+    fieldsToFill.forEach(key => {
+      if (addr[key] && addr[key].trim()) {
+        const el = document.getElementById('field_' + entId + '_' + key);
+        if (el) {
+          el.value = addr[key].toUpperCase();
+          el.classList.remove('missing');
+          if (ent) ent.campos[key] = addr[key].toUpperCase();
+          filled++;
+        }
+      }
+    });
+
+    // Atualiza badge de campos faltando
+    if (ent) atualizarBadge(entId);
+
+    if (statusEl) statusEl.textContent = `✅ ${filled} campos preenchidos!`;
+    if (btnEl) {
+      btnEl.textContent = '✅ Endereço preenchido pelo comprovante';
+      btnEl.classList.add('loaded');
+      btnEl.disabled = false;
+    }
+
+    // Auto-fecha a zona após sucesso
+    setTimeout(() => {
+      const zone = document.getElementById('comp-zone-' + entId);
+      if (zone) zone.classList.remove('open');
+    }, 2000);
+
+  } catch(e) {
+    if (statusEl) statusEl.textContent = '❌ Erro: ' + e.message;
+    if (btnEl) btnEl.disabled = false;
+  }
+}
+
 function syncFormFromCards() {
   if (!entidadesExtraidas || !entidadesExtraidas.length) return;
   entidadesExtraidas.forEach(ent => {
