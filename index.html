@@ -2905,33 +2905,67 @@ function gerarPDF(tipo) {
     const compR = rComp && rComp !== '-' ? ', ' + rComp : '';
     const compM = mComp && mComp !== '-' ? ', ' + mComp : '';
 
-    doc.setFontSize(14); doc.setFont('helvetica','bold');
-    doc.text('TERMO DE AUTORIZAÇÃO E RESPONSABILIDADE', 105, y, {align:'center'}); y += 15;
+    // ── Configuração de página ──
+    doc.setLineHeightFactor(1.4);
+    
+    // Título centralizado e sublinhado
+    doc.setFontSize(12); doc.setFont('helvetica','bold');
+    const titulo = 'TERMO DE AUTORIZAÇÃO E RESPONSABILIDADE';
+    doc.text(titulo, 105, y, {align:'center'});
+    // Sublinhado manual
+    const tW = doc.getTextWidth(titulo);
+    doc.setLineWidth(0.3);
+    doc.line(105 - tW/2, y+1, 105 + tW/2, y+1);
+    y += 12;
 
-    txt('REPRESENTANTE LEGAL:', true, 'left');
-    txt(`Nome: ${rNome}`, false, 'left');
-    txt(`Documento de Identificação (CPF): ${rCpf}`, false, 'left');
-    txt(`Endereço: ${rRua}, ${rNum}${compR}, ${rBairro} - ${rCid}/${rUf} - ${rCep}`, false, 'left');
+    // REPRESENTANTE LEGAL
+    doc.setFontSize(11); doc.setFont('helvetica','bold');
+    doc.text('REPRESENTANTE LEGAL:', M, y); y += 7;
+    doc.setFont('helvetica','normal');
+    doc.text(`Nome: ${rNome}`, M, y); y += 6;
+    doc.text(`Documento de Identificação (CPF): ${rCpf}`, M, y); y += 6;
+    const endR = `Endereço: ${rRua}, ${rNum}${compR},  ${rBairro} - ${rCid}/${rUf} - ${rCep}`;
+    const endRLines = doc.splitTextToSize(endR, W);
+    doc.text(endRLines, M, y); y += endRLines.length * LH + 8;
+
+    // MENOR AUTORIZADO
+    doc.setFont('helvetica','bold');
+    doc.text('MENOR AUTORIZADO:', M, y); y += 7;
+    doc.setFont('helvetica','normal');
+    doc.text(`Nome: ${mNome}`, M, y); y += 6;
+    doc.text(`Documento de Identificação (CPF): ${mCpf}`, M, y); y += 6;
+    const endM = `Endereço: ${mRua}, ${mNum}${compM},  ${mBairro} - ${mCid}/${mUf} - ${mCep}`;
+    const endMLines = doc.splitTextToSize(endM, W);
+    doc.text(endMLines, M, y); y += endMLines.length * LH + 10;
+
+    // Corpo do texto — justificado
+    txt('Este termo tem como objeto a autorização, desde o momento do credenciamento na Plataforma Appmax e por tempo indeterminado, pelo representante legal acima qualificado, para que o menor utilize a Plataforma, reconhecendo as diretrizes estabelecidas nos Termos de Uso e Política de Privacidade da Appmax, disponíveis no site oficial da Appmax https://appmax.com.br');
+    y += 5;
+    txt('O representante legal, ao assinar este termo, se compromete a:');
+    y += 2;
+
+    // Itens com recuo
+    const itens = [
+      'a) Supervisionar o uso da Plataforma Appmax (CNPJ nº 27.000.511/0001-60) pelo menor, orientando-o sobre as diretrizes de segurança e bom uso do ambiente digital.',
+      'b) Assumir integral responsabilidade por quaisquer ações realizadas pelo menor na plataforma, inclusive eventuais infrações aos Termos de Uso, inclusive por eventuais débitos que possam vir a surgir, em decorrência de chargebacks e estornos.',
+      'c) Arcar com eventuais danos ou prejuízos decorrentes do uso da plataforma pelo menor, isentando a Appmax de qualquer responsabilidade nesses casos.'
+    ];
+    doc.setFont('helvetica','normal'); doc.setFontSize(11);
+    itens.forEach(item => {
+      if (y > 270) { doc.addPage(); y = 20; }
+      const lines = doc.splitTextToSize(item, W - 8);
+      doc.text(lines, M + 8, y);
+      y += lines.length * LH + 3;
+    });
     y += 4;
 
-    txt('MENOR AUTORIZADO:', true, 'left');
-    txt(`Nome: ${mNome}`, false, 'left');
-    txt(`Documento de Identificação (CPF): ${mCpf}`, false, 'left');
-    txt(`Endereço: ${mRua}, ${mNum}${compM}, ${mBairro} - ${mCid}/${mUf} - ${mCep}`, false, 'left');
-    y += 5;
-
-    txt('Este termo tem como objeto a autorização, desde o momento do credenciamento na Plataforma Appmax e por tempo indeterminado, pelo representante legal acima qualificado, para que o menor utilize a Plataforma, reconhecendo as diretrizes estabelecidas nos Termos de Uso e Política de Privacidade da Appmax, disponíveis no site oficial da Appmax https://appmax.com.br');
-    y += 3;
-    txt('O representante legal, ao assinar este termo, se compromete a:');
-    txt('a) Supervisionar o uso da Plataforma Appmax (CNPJ nº 27.000.511/0001-60) pelo menor, orientando-o sobre as diretrizes de segurança e bom uso do ambiente digital.');
-    txt('b) Assumir integral responsabilidade por quaisquer ações realizadas pelo menor na plataforma, inclusive eventuais infrações aos Termos de Uso, inclusive por eventuais débitos que possam vir a surgir, em decorrência de chargebacks e estornos.');
-    txt('c) Arcar com eventuais danos ou prejuízos decorrentes do uso da plataforma pelo menor, isentando a Appmax de qualquer responsabilidade nesses casos.');
-    y += 3;
     txt('O representante legal declara que as informações fornecidas são verídicas e atualizadas, assumindo plena responsabilidade pela veracidade das mesmas.');
-    y += 5;
-    txt(`Local e Data: ${rCid}/${rUf}, ${dataExtenso()}`, false, 'left');
-    y += 15;
-    assinatura('Assinatura do Representante Legal:', rNome);
+    y += 8;
+
+    doc.setFont('helvetica','normal'); doc.setFontSize(11);
+    doc.text(`Local e Data: ${rCid}/${rUf}, ${dataExtenso()}`, M, y); y += 5;
+    doc.text(`Assinatura do Representante Legal: ${rNome}`, M, y);
+
     doc.save(`TERMO_MENOR_${getNomePrincipal().replace(/[^A-Z0-9]/g,'_')}.pdf`);
     return;
   }
