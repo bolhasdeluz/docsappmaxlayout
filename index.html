@@ -1,0 +1,3453 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gerador de Documentos · Appmax</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+  
+  <style>
+    :root {
+      --purple: #5c3d99;
+      --purple-light: #7c5cbf;
+      --purple-dim: #ede9f7;
+      --green: #1e6b45;
+      --green-light: #e6f4ed;
+      --red: #b91c1c;
+      --bg: #f5f4f8;
+      --surface: #ffffff;
+      --border: #e2dff0;
+      --text: #1a1625;
+      --muted: #7a7490;
+      --radius: 10px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'DM Sans', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    /* TOPBAR */
+    .topbar {
+      background: var(--purple);
+      color: white;
+      padding: 14px 28px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      box-shadow: 0 2px 12px rgba(92,61,153,0.25);
+    }
+    .topbar-logo { font-size: 18px; font-weight: 700; letter-spacing: -0.5px; }
+    .topbar-sep { opacity: 0.3; margin: 0 4px; }
+    .topbar-sub { font-size: 13px; opacity: 0.7; font-weight: 400; }
+    .topbar-back {
+      margin-left: auto;
+      background: rgba(255,255,255,0.15);
+      border: none;
+      color: white;
+      padding: 6px 14px;
+      border-radius: 6px;
+      font-size: 13px;
+      cursor: pointer;
+      font-family: inherit;
+      display: none;
+      align-items: center;
+      gap: 6px;
+      transition: background 0.15s;
+    }
+    .topbar-back:hover { background: rgba(255,255,255,0.25); }
+    .topbar-back.visible { display: flex; }
+
+    /* LAYOUT */
+    .page { max-width: 860px; margin: 0 auto; padding: 28px 20px 60px; }
+    .screen { display: none; }
+    .screen.active { display: block; }
+
+    /* CARD BASE */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 24px;
+      margin-bottom: 16px;
+    }
+
+    /* TELA 1 — SELEÇÃO */
+    .screen-title {
+      font-size: 22px;
+      font-weight: 700;
+      color: var(--purple);
+      margin-bottom: 6px;
+    }
+    .screen-sub { font-size: 14px; color: var(--muted); margin-bottom: 24px; }
+
+    .doc-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 14px;
+    }
+    .doc-card {
+      border: 2px solid var(--border);
+      border-radius: var(--radius);
+      padding: 22px 18px;
+      cursor: pointer;
+      transition: all 0.15s;
+      background: var(--surface);
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 8px;
+    }
+    .doc-card:hover {
+      border-color: var(--purple);
+      background: var(--purple-dim);
+      transform: translateY(-2px);
+      box-shadow: 0 4px 16px rgba(92,61,153,0.12);
+    }
+    .doc-card-icon { font-size: 26px; }
+    .doc-card-name { font-size: 14px; font-weight: 600; color: var(--text); }
+    .doc-card-desc { font-size: 12px; color: var(--muted); }
+
+    /* TELA 2 — EXTRAÇÃO */
+    .section-label {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--muted);
+      margin-bottom: 8px;
+    }
+    .upload-drop {
+      display: block;
+      border: 2px dashed var(--purple-light);
+      border-radius: var(--radius);
+      padding: 32px 20px;
+      text-align: center;
+      cursor: pointer;
+      background: var(--purple-dim);
+      transition: all 0.15s;
+      margin-bottom: 16px;
+      width: 100%;
+      box-sizing: border-box;
+    }
+    .upload-drop:hover { background: #e3dcf5; border-color: var(--purple); }
+    .upload-drop.hub-drag { background: #e3dcf5; border-color: var(--purple); }
+    .upload-drop input { display: none; }
+    .upload-drop-icon { font-size: 28px; margin-bottom: 8px; }
+    .upload-drop-text { font-size: 14px; font-weight: 500; color: var(--purple); }
+    .upload-drop-sub { font-size: 12px; color: var(--muted); margin-top: 4px; }
+    .upload-success { color: var(--green); font-weight: 600; }
+
+    .divider {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      color: var(--muted);
+      font-size: 12px;
+      margin: 16px 0;
+    }
+    .divider::before, .divider::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: var(--border);
+    }
+
+    textarea.paste-area {
+      width: 100%;
+      min-height: 120px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px;
+      font-family: 'DM Mono', monospace;
+      font-size: 12px;
+      resize: vertical;
+      color: var(--text);
+      background: #fafaf9;
+      transition: border 0.15s;
+    }
+    textarea.paste-area:focus {
+      outline: none;
+      border-color: var(--purple);
+      box-shadow: 0 0 0 3px rgba(92,61,153,0.1);
+    }
+    textarea.paste-area::placeholder { color: #b0aac4; }
+
+    /* BOTÕES */
+    .btn-row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 20px; }
+    .btn {
+      padding: 11px 20px;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: inherit;
+      transition: all 0.15s;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+    }
+    .btn-ai { background: var(--purple); color: white; flex: 1; justify-content: center; }
+    .btn-ai:hover { background: var(--purple-light); }
+    .btn-ai:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-manual { background: var(--surface); border: 2px solid var(--purple); color: var(--purple); flex: 1; justify-content: center; }
+    .btn-manual:hover { background: var(--purple-dim); }
+    .btn-generate { background: var(--green); color: white; flex: 1; justify-content: center; }
+    .btn-generate:hover { background: #165c38; }
+    .btn-text { background: #1e40af; color: white; flex: 1; justify-content: center; }
+    .btn-text:hover { background: #1d4ed8; }
+
+    /* FORMAT BAR */
+    .format-bar {
+      display: flex; gap: 8px; margin-top: 16px; flex-wrap: wrap;
+    }
+    .format-btn {
+      flex: 1; min-width: 120px; padding: 11px 16px;
+      border-radius: 8px; border: 2px solid var(--border);
+      background: white; font-size: 13px; font-weight: 600;
+      cursor: pointer; font-family: inherit; color: var(--text);
+      display: flex; align-items: center; justify-content: center;
+      gap: 7px; transition: all 0.15s;
+    }
+    .format-btn:hover { border-color: var(--purple); background: var(--purple-dim); color: var(--purple); }
+    .format-btn.pdf { background: var(--green); color: white; border-color: var(--green); }
+    .format-btn.pdf:hover { background: #165c38; border-color: #165c38; }
+    .format-btn.word { background: #1e40af; color: white; border-color: #1e40af; }
+    .format-btn.word:hover { background: #1d4ed8; border-color: #1d4ed8; }
+    .btn-back { background: transparent; border: 1px solid var(--border); color: var(--muted); }
+    .btn-back:hover { border-color: var(--purple); color: var(--purple); }
+
+    /* TELA 3 — FORMULÁRIO */
+    .form-section {
+      margin-bottom: 8px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+    .form-section-header {
+      padding: 12px 18px;
+      background: #f8f7fc;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--purple);
+    }
+    .form-section-body {
+      padding: 18px;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 14px;
+    }
+    .form-section-body.hidden { display: none; }
+    .full { grid-column: 1 / -1; }
+
+    .field { display: flex; flex-direction: column; gap: 5px; }
+    .field label {
+      font-size: 10px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      color: var(--muted);
+    }
+    .field input, .field select {
+      padding: 9px 11px;
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      font-size: 13px;
+      font-family: 'DM Sans', sans-serif;
+      text-transform: uppercase;
+      color: var(--text);
+      background: #fafaf9;
+      transition: border 0.15s;
+    }
+    .field input:focus, .field select:focus {
+      outline: none;
+      border-color: var(--purple);
+      box-shadow: 0 0 0 3px rgba(92,61,153,0.09);
+      background: white;
+    }
+    .field input:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .toggle-label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      font-weight: 400;
+      color: var(--muted);
+      cursor: pointer;
+    }
+    .toggle-label input[type="checkbox"] { accent-color: var(--purple); width: 15px; height: 15px; }
+
+    /* STATUS */
+    .status-bar {
+      padding: 10px 14px;
+      border-radius: 8px;
+      font-size: 13px;
+      margin-top: 14px;
+      display: none;
+      align-items: center;
+      gap: 8px;
+    }
+    .status-bar.visible { display: flex; }
+    .status-bar.info { background: var(--purple-dim); color: var(--purple); }
+    .status-bar.error { background: #fee2e2; color: var(--red); }
+    .status-bar.success { background: var(--green-light); color: var(--green); }
+
+    /* LOADING OVERLAY */
+    #loading-overlay {
+      position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(26,22,37,0.55);
+      display: flex; justify-content: center; align-items: center;
+      z-index: 9999;
+      display: none;
+    }
+    #loading-overlay.visible { display: flex; }
+    .loading-box {
+      background: white;
+      border-radius: 14px;
+      padding: 32px 40px;
+      text-align: center;
+      box-shadow: 0 24px 60px rgba(0,0,0,0.2);
+    }
+    .loading-spinner {
+      width: 40px; height: 40px;
+      border: 3px solid var(--purple-dim);
+      border-top-color: var(--purple);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin: 0 auto 14px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .loading-text { font-weight: 600; color: var(--purple); font-size: 15px; }
+    .loading-sub { font-size: 12px; color: var(--muted); margin-top: 4px; }
+
+
+
+
+    /* EXPANDABLE CARDS */
+    .entity-card { cursor: default; flex-wrap: wrap; }
+    .entity-card-header {
+      display: flex; align-items: center; gap: 14px;
+      width: 100%; cursor: pointer; user-select: none;
+    }
+    .entity-card-header:hover .entity-card-name { color: var(--purple); }
+    .expand-arrow {
+      margin-left: auto; font-size: 13px; color: var(--muted);
+      transition: transform 0.2s; flex-shrink: 0;
+    }
+    .entity-card.expanded .expand-arrow { transform: rotate(180deg); }
+    .entity-card-fields {
+      display: none; width: 100%; margin-top: 14px;
+      padding-top: 14px; border-top: 1px solid var(--border);
+      display: none;
+    }
+    .entity-card.expanded .entity-card-fields { display: block; }
+    .fields-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 10px;
+    }
+    .field-inline { display: flex; flex-direction: column; gap: 4px; }
+    .field-inline label {
+      font-size: 10px; font-weight: 600;
+      text-transform: uppercase; letter-spacing: 0.06em;
+      color: var(--muted);
+    }
+    .field-inline input {
+      padding: 8px 10px;
+      border: 1px solid var(--border);
+      border-radius: 6px; font-size: 13px;
+      font-family: 'DM Sans', sans-serif;
+      text-transform: uppercase; color: var(--text);
+      background: #fafaf9; transition: border 0.15s;
+    }
+    .field-inline input:focus {
+      outline: none; border-color: var(--purple);
+      box-shadow: 0 0 0 3px rgba(92,61,153,0.09);
+      background: white;
+    }
+    .field-inline input.missing {
+      border-color: #f59e0b;
+      background: #fffbeb;
+    }
+    .field-inline input.missing:focus {
+      border-color: var(--purple);
+      background: white;
+    }
+    .field-full { grid-column: 1 / -1; }
+    .expand-hint {
+      font-size: 11px; color: var(--muted); margin-top: 4px;
+      display: flex; align-items: center; gap: 4px;
+    }
+
+    /* CAMPOS FALTANDO */
+    .entity-card-missing { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 5px; }
+    .missing-tag {
+      background: #fff3e0; border: 1px solid #ffb74d;
+      color: #e65100; border-radius: 4px;
+      padding: 2px 8px; font-size: 11px; font-weight: 600;
+    }
+    .entity-card.tem-pendencia { border-left: 3px solid #f59e0b; }
+    .entity-card.completo { border-left: 3px solid #22c55e; }
+
+    /* TELA PENDÊNCIAS */
+    .pend-card {
+      background: #fff8f0; border: 1px solid #fcd34d;
+      border-radius: var(--radius); padding: 16px 18px; margin-bottom: 10px;
+    }
+    .pend-card-nome { font-weight: 600; font-size: 14px; margin-bottom: 8px; }
+    .pend-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+    .pend-tag {
+      background: #fee2e2; border: 1px solid #fca5a5;
+      color: #b91c1c; border-radius: 4px;
+      padding: 3px 10px; font-size: 12px; font-weight: 600;
+    }
+    .msg-box {
+      background: #f0fdf4; border: 1px solid #86efac;
+      border-radius: var(--radius); padding: 16px;
+      font-family: 'DM Mono', monospace; font-size: 12px;
+      white-space: pre-wrap; line-height: 1.6; color: #166534;
+      margin-top: 12px;
+    }
+    .btn-copy {
+      background: var(--purple); color: white; border: none;
+      border-radius: 7px; padding: 10px 20px; font-size: 13px;
+      font-weight: 600; cursor: pointer; font-family: inherit;
+      display: flex; align-items: center; gap: 6px;
+    }
+    .btn-copy:hover { background: var(--purple-light); }
+    .btn-copy.copiado { background: var(--green); }
+
+    /* REVIEW CARDS */
+    .entity-card {
+      background: white;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px 18px;
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+    .entity-card-icon { font-size: 26px; flex-shrink: 0; }
+    .entity-card-info { flex: 1; min-width: 0; }
+    .entity-card-name { font-weight: 600; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .entity-card-doc { font-size: 12px; color: var(--muted); margin-top: 2px; font-family: 'DM Mono', monospace; }
+    .entity-card-role { flex-shrink: 0; }
+    .entity-card-role select {
+      padding: 8px 12px;
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      font-size: 13px;
+      font-family: 'DM Sans', sans-serif;
+      color: var(--text);
+      background: white;
+      min-width: 220px;
+      cursor: pointer;
+    }
+    .entity-card-role select:focus {
+      outline: none;
+      border-color: var(--purple);
+      box-shadow: 0 0 0 3px rgba(92,61,153,0.09);
+    }
+    @media (max-width: 600px) {
+      .entity-card { flex-wrap: wrap; }
+      .entity-card-role select { min-width: 100%; width: 100%; }
+    }
+
+    /* HIDDEN */
+    .hidden { display: none !important; }
+    .pix-hidden { display: none !important; }
+    .group-hidden { display: none !important; }
+
+    /* RESPONSIVE */
+    @media (max-width: 600px) {
+      .page { padding: 16px 12px 50px; }
+      .doc-grid { grid-template-columns: 1fr 1fr; }
+      .btn-row { flex-direction: column; }
+      .form-section-body { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- TOPBAR -->
+<div class="topbar">
+  <span class="topbar-logo">Appmax</span>
+  <span class="topbar-sep">|</span>
+  <span class="topbar-sub">Gerador de Documentos</span>
+  <button class="topbar-back" id="btn-voltar" onclick="voltarTela()">← Voltar</button>
+</div>
+
+<!-- LOADING -->
+<div id="loading-overlay">
+  <div class="loading-box">
+    <div class="loading-spinner"></div>
+    <div class="loading-text">Extraindo dados com IA...</div>
+    <div class="loading-sub">Isso pode levar alguns segundos</div>
+  </div>
+</div>
+
+<div class="page">
+
+  <!-- ===================== TELA 1: HUB PRINCIPAL ===================== -->
+  <div id="tela-1" class="screen active">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:12px;margin-bottom:20px;">
+      <div>
+        <div class="screen-title" style="margin-bottom:2px;">Gerador de Documentos</div>
+        <div class="screen-sub" style="margin-bottom:0;">Carregue os arquivos, selecione o documento e extraia com IA</div>
+      </div>
+      <button onclick="irTela('tela-calc')" style="background:#fffbeb;border:2px solid #d97706;color:#92400e;padding:10px 18px;border-radius:9px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:7px;white-space:nowrap;">
+        🧮 Calculadora de Taxas
+      </button>
+    </div>
+
+    <!-- DROPDOWN DE DOCUMENTO -->
+    <div class="card" style="margin-bottom:14px;">
+      <div class="section-label" style="margin-bottom:8px;">Tipo de documento</div>
+      <select id="hub-doc-select" style="width:100%;padding:12px 14px;border:2px solid var(--border);border-radius:9px;font-size:15px;font-weight:600;font-family:inherit;color:var(--text);background:white;cursor:pointer;appearance:auto;" onchange="hubOnSelectChange(this.value)">
+        <option value="">— Selecione o documento —</option>
+        <optgroup label="Procuração e Termo">
+          <option value="PJ">🏢 Lote PJ — Procuração + Termo</option>
+          <option value="PF">👤 Lote PF — Procuração + Termo</option>
+        </optgroup>
+        <optgroup label="Termos Específicos">
+          <option value="MENOR">👦 Termo de Menor</option>
+          <option value="SAQUE">💰 Termo de Saque</option>
+        </optgroup>
+        <optgroup label="Revogação">
+          <option value="REVOG_PF">🚫 Revogação de Procuração PF</option>
+          <option value="REVOG_PJ">🏚️ Revogação de Procuração PJ</option>
+        </optgroup>
+      </select>
+    </div>
+
+    <!-- DOIS SLOTS DE UPLOAD -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px;">
+
+      <div>
+        <div class="section-label" style="margin-bottom:6px;" id="hub-slot1-label">Documento principal</div>
+        <label class="upload-drop" id="hub-drop1" for="hub-file1"
+          ondragover="event.preventDefault();this.classList.add('hub-drag')"
+          ondragleave="this.classList.remove('hub-drag')"
+          ondrop="hubHandleDrop(event,1)">
+          <input type="file" id="hub-file1" accept="application/pdf,image/*" onchange="hubHandleFile(this.files[0],1)">
+          <div class="upload-drop-icon" style="font-size:24px;margin-bottom:6px;">📄</div>
+          <div class="upload-drop-text" id="hub-file1-label" style="font-size:13px;">Clique ou arraste aqui</div>
+          <div class="upload-drop-sub" style="font-size:11px;">PDF ou imagem</div>
+        </label>
+      </div>
+
+      <div id="hub-slot2-wrap">
+        <div class="section-label" style="margin-bottom:6px;" id="hub-slot2-label">Cartão CNPJ / QSA</div>
+        <label class="upload-drop" id="hub-drop2" for="hub-file2"
+          style="border-color:#2e7d32;background:#f0faf4;"
+          ondragover="event.preventDefault();this.classList.add('hub-drag')"
+          ondragleave="this.classList.remove('hub-drag')"
+          ondrop="hubHandleDrop(event,2)">
+          <input type="file" id="hub-file2" accept="application/pdf,image/*" onchange="hubHandleFile(this.files[0],2)">
+          <div class="upload-drop-icon" style="font-size:24px;margin-bottom:6px;">🏢</div>
+          <div class="upload-drop-text" id="hub-file2-label" style="font-size:13px;color:#2e7d32;">Clique ou arraste aqui</div>
+          <div class="upload-drop-sub" style="font-size:11px;">Opcional — dados da empresa</div>
+        </label>
+      </div>
+
+    </div>
+
+    <!-- TEXTO LIVRE -->
+    <div class="card" style="margin-bottom:14px;">
+      <div class="section-label" style="margin-bottom:6px;">Ou cole o texto diretamente</div>
+      <textarea id="hub-texto" class="paste-area" style="min-height:90px;" placeholder="Cole aqui dados de e-mail, conversa ou qualquer texto com as informações..."></textarea>
+    </div>
+
+    <div class="status-bar" id="hub-status"></div>
+
+    <!-- BOTÕES -->
+    <div class="btn-row" style="margin-top:14px;">
+      <button class="btn btn-ai" id="hub-btn-ai" onclick="hubExtrair()" disabled>🤖 Extrair com IA</button>
+      <button class="btn btn-manual" onclick="hubManual()">✏️ Preencher Manualmente</button>
+    </div>
+  </div>
+
+  <!-- ===================== TELA 2: EXTRAÇÃO ===================== -->
+  <div id="tela-2" class="screen">
+    <div class="screen-title" id="t2-titulo">Extrair dados</div>
+    <div class="screen-sub">Faça upload do PDF ou cole o texto para a IA identificar os dados automaticamente</div>
+
+    <div class="card">
+      <div class="section-label">Upload de PDF</div>
+      <label class="upload-drop">
+        <input type="file" id="file-pdf" accept="application/pdf" onchange="onPdfSelecionado(this, 'upload-label')">
+        <div class="upload-drop-icon">📄</div>
+        <div class="upload-drop-text" id="upload-label">Clique para selecionar o PDF principal</div>
+        <div class="upload-drop-sub">Contrato social, ficha cadastral, dados dos sócios...</div>
+      </label>
+
+      <!-- SEGUNDO PDF — só aparece para PJ -->
+      <div id="upload-qsa-container" class="hidden">
+        <div class="divider">+ documento da empresa</div>
+        <label class="upload-drop" style="border-color: #2e7d32; background: #f0faf4;">
+          <input type="file" id="file-qsa" accept="application/pdf" onchange="onPdfSelecionado(this, 'upload-qsa-label')">
+          <div class="upload-drop-icon">🏢</div>
+          <div class="upload-drop-text" id="upload-qsa-label" style="color: #2e7d32;">Clique para selecionar o Cartão CNPJ (QSA)</div>
+          <div class="upload-drop-sub">Comprovante da Receita Federal com dados da empresa</div>
+        </label>
+      </div>
+
+      <div class="divider">ou cole o texto abaixo</div>
+
+      <div class="section-label">Texto livre</div>
+      <textarea id="texto-manual" class="paste-area" placeholder="Cole aqui os dados de um e-mail, conversa ou qualquer texto com as informações..."></textarea>
+
+      <div class="status-bar" id="status-bar"></div>
+
+      <div class="btn-row">
+        <button class="btn btn-ai" id="btn-extrair" onclick="extrairComIA()">🤖 Extrair com IA</button>
+        <button class="btn btn-manual" onclick="irParaFormulario()">✏️ Preencher Manualmente</button>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ===================== TELA REVIEW: CARDS ===================== -->
+  <div id="tela-review" class="screen">
+    <div class="screen-title">Dados encontrados</div>
+    <div class="screen-sub">Defina o papel de cada pessoa no documento e clique em gerar</div>
+    <div id="review-cards"></div>
+
+    <!-- DATA ORIGINAL — só aparece para Revogação -->
+    <div id="data-original-bloco" class="card hidden" style="margin-top:8px;">
+      <div style="font-weight:600;color:var(--purple);margin-bottom:12px;">📅 Data da procuração original</div>
+      <div class="field-inline" style="max-width:260px;">
+        <label>Data em que a procuração foi assinada</label>
+        <input type="date" id="data_original_input" style="padding:9px;border:1px solid var(--border);border-radius:7px;font-size:13px;font-family:inherit;">
+      </div>
+    </div>
+
+    <!-- SWAP MENOR — só aparece para MENOR -->
+    <div id="swap-menor-btn" class="hidden" style="margin-top:8px;">
+      <button onclick="swapMenorRep()" style="width:100%;padding:11px;background:#f0f2f5;border:2px dashed #b0aac4;border-radius:8px;font-size:13px;font-weight:600;color:var(--muted);cursor:pointer;font-family:inherit;">
+        🔄 Inverter Representante e Menor
+      </button>
+    </div>
+
+    <!-- BANKING SAQUE — só aparece para SAQUE -->
+    <div id="saque-banking-review" class="card hidden" style="margin-top:8px;">
+      <div style="font-weight:600;color:var(--purple);margin-bottom:16px;">💰 Valores e Dados Bancários</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;">
+        <div class="field-inline"><label>Valor Principal (R$)</label><input id="sq_v1" type="text" oninput="maskMoedaInline(this,'sq_e1')" placeholder="R$ 0,00"></div>
+        <div class="field-inline"><label>Por Extenso</label><input id="sq_e1" type="text" readonly style="background:#f0fdf4;color:#166534;font-size:11px;"></div>
+        <div class="field-inline"><label>Valor Adicional (opcional)</label><input id="sq_v2" type="text" oninput="maskMoedaInline(this,'sq_e2')" placeholder="Opcional"></div>
+        <div class="field-inline"><label>Por Extenso</label><input id="sq_e2" type="text" readonly style="background:#f0fdf4;color:#166534;font-size:11px;"></div>
+        <div class="field-inline"><label>CPF Titular da Conta</label><input id="sq_cpfconta" type="text" oninput="maskCPF(this)" maxlength="14"></div>
+        <div class="field-inline"><label>Tipo de Conta</label><select id="sq_tipoconta" style="padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:inherit;background:#fafaf9;"><option>CORRENTE</option><option>POUPANÇA</option></select></div>
+        <div class="field-inline"><label>Banco</label><input id="sq_banco2" type="text"></div>
+        <div class="field-inline"><label>Agência</label><input id="sq_agencia2" type="text"></div>
+        <div class="field-inline"><label>Conta</label><input id="sq_conta2" type="text"></div>
+        <div class="field-inline" style="grid-column:1/-1"><label>Chave PIX</label><input id="sq_pix2" type="text"></div>
+      </div>
+    </div>
+
+    <div class="format-bar" style="margin-top:16px;">
+      <button class="format-btn pdf" onclick="confirmarFormato('pdf','review')">📄 Baixar PDF</button>
+      <button class="format-btn word" onclick="confirmarFormato('docx','review')">📝 Baixar Word</button>
+    </div>
+  </div>
+
+
+  <!-- ===================== TELA PENDÊNCIAS ===================== -->
+  <div id="tela-pendencias" class="screen">
+    <div class="screen-title" id="pend-titulo">Pendências encontradas</div>
+    <div class="screen-sub" id="pend-sub"></div>
+    <div id="pend-cards"></div>
+    <div id="pend-msg-bloco" class="card" style="margin-top:16px;">
+      <div style="font-weight:600; margin-bottom:8px; color: var(--purple);">📋 Mensagem pronta para o parceiro</div>
+      <div class="msg-box" id="pend-msg-texto"></div>
+      <div style="margin-top:12px;">
+        <button class="btn-copy" id="btn-copiar" onclick="copiarMensagem()">📋 Copiar mensagem</button>
+      </div>
+    </div>
+    <div class="btn-row" style="margin-top:16px;">
+      <div class="format-bar">
+        <button class="format-btn pdf" onclick="confirmarFormato('pdf','pendencias')">📄 Baixar PDF mesmo assim</button>
+        <button class="format-btn word" onclick="confirmarFormato('docx','pendencias')">📝 Baixar Word mesmo assim</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================== TELA 3: FORMULÁRIO ===================== -->
+  <div id="tela-3" class="screen">
+    <div class="screen-title">Revisar e gerar</div>
+    <div class="screen-sub">Verifique os dados antes de gerar os documentos</div>
+
+    <!-- EMPRESA (PJ) -->
+    <div class="form-section group-pj">
+      <div class="form-section-header">🏢 Empresa (Pessoa Jurídica)</div>
+      <div class="form-section-body">
+        <div class="field full"><label>Razão Social</label><input id="pj_nome" type="text"></div>
+        <div class="field"><label>CNPJ</label><input id="pj_cnpj" type="text" oninput="maskCNPJ(this)" maxlength="18"></div>
+        <div class="field"><label>CEP</label><input id="pj_cep" type="text" oninput="onCEPInputForm(this,'pj')" maxlength="9"></div>
+        <div class="field full"><label>Logradouro</label><input id="pj_rua" type="text"></div>
+        <div class="field"><label>Número</label><input id="pj_num" type="text"></div>
+        <div class="field"><label>Complemento</label><input id="pj_comp" type="text"></div>
+        <div class="field"><label>Bairro</label><input id="pj_bairro" type="text"></div>
+        <div class="field"><label>Cidade</label><input id="pj_cid" type="text"></div>
+        <div class="field"><label>UF</label><input id="pj_uf" type="text" maxlength="2"></div>
+      </div>
+    </div>
+
+    <!-- OUTORGANTE 1 -->
+    <div class="form-section group-p1">
+      <div class="form-section-header" id="lbl-p1">👤 Outorgante / Parceiro 1</div>
+      <div class="form-section-body">
+        <div class="field full"><label>Nome Completo</label><input id="p1_nome" type="text"></div>
+        <div class="field"><label>CPF</label><input id="p1_cpf" type="text" oninput="maskCPF(this)" maxlength="14"></div>
+        <div class="field"><label>Nacionalidade</label><input id="p1_nac" type="text" value="BRASILEIRO(A)"></div>
+        <div class="field"><label>CEP</label><input id="p1_cep" type="text" oninput="onCEPInputForm(this,'p1')" maxlength="9"></div>
+        <div class="field full"><label>Logradouro</label><input id="p1_rua" type="text"></div>
+        <div class="field"><label>Número</label><input id="p1_num" type="text"></div>
+        <div class="field"><label>Complemento</label><input id="p1_comp" type="text"></div>
+        <div class="field"><label>Bairro</label><input id="p1_bairro" type="text"></div>
+        <div class="field"><label>Cidade</label><input id="p1_cid" type="text"></div>
+        <div class="field"><label>UF</label><input id="p1_uf" type="text" maxlength="2"></div>
+      </div>
+    </div>
+
+    <!-- OUTORGANTE 2 (opcional) -->
+    <div class="form-section group-p-extra">
+      <div class="form-section-header">
+        👤 Outorgante / Parceiro 2
+        <label class="toggle-label"><input type="checkbox" id="toggle_p2" onchange="toggleSecao('p2', this.checked)"> Incluir</label>
+      </div>
+      <div class="form-section-body hidden" id="section_p2">
+        <div class="field full"><label>Nome Completo</label><input id="p2_nome" type="text" disabled></div>
+        <div class="field"><label>CPF</label><input id="p2_cpf" type="text" oninput="maskCPF(this)" maxlength="14" disabled></div>
+        <div class="field"><label>Nacionalidade</label><input id="p2_nac" type="text" value="BRASILEIRO(A)" disabled></div>
+        <div class="field"><label>CEP</label><input id="p2_cep" type="text" oninput="onCEPInputForm(this,'p2')" maxlength="9" disabled></div>
+        <div class="field full"><label>Logradouro</label><input id="p2_rua" type="text" disabled></div>
+        <div class="field"><label>Número</label><input id="p2_num" type="text" disabled></div>
+        <div class="field"><label>Complemento</label><input id="p2_comp" type="text" disabled></div>
+        <div class="field"><label>Bairro</label><input id="p2_bairro" type="text" disabled></div>
+        <div class="field"><label>Cidade</label><input id="p2_cid" type="text" disabled></div>
+        <div class="field"><label>UF</label><input id="p2_uf" type="text" maxlength="2" disabled></div>
+      </div>
+    </div>
+
+    <!-- OUTORGANTE 3 (opcional) -->
+    <div class="form-section group-p-extra">
+      <div class="form-section-header">
+        👤 Outorgante / Parceiro 3
+        <label class="toggle-label"><input type="checkbox" id="toggle_p3" onchange="toggleSecao('p3', this.checked)"> Incluir</label>
+      </div>
+      <div class="form-section-body hidden" id="section_p3">
+        <div class="field full"><label>Nome Completo</label><input id="p3_nome" type="text" disabled></div>
+        <div class="field"><label>CPF</label><input id="p3_cpf" type="text" oninput="maskCPF(this)" maxlength="14" disabled></div>
+        <div class="field"><label>Nacionalidade</label><input id="p3_nac" type="text" value="BRASILEIRO(A)" disabled></div>
+        <div class="field"><label>CEP</label><input id="p3_cep" type="text" oninput="onCEPInputForm(this,'p3')" maxlength="9" disabled></div>
+        <div class="field full"><label>Logradouro</label><input id="p3_rua" type="text" disabled></div>
+        <div class="field"><label>Número</label><input id="p3_num" type="text" disabled></div>
+        <div class="field"><label>Complemento</label><input id="p3_comp" type="text" disabled></div>
+        <div class="field"><label>Bairro</label><input id="p3_bairro" type="text" disabled></div>
+        <div class="field"><label>Cidade</label><input id="p3_cid" type="text" disabled></div>
+        <div class="field"><label>UF</label><input id="p3_uf" type="text" maxlength="2" disabled></div>
+      </div>
+    </div>
+
+    <!-- OUTORGADO 1 -->
+    <div class="form-section group-s">
+      <div class="form-section-header" id="lbl-s1">👔 Outorgado / Terceiro Operador 1</div>
+      <div class="form-section-body">
+        <div class="field full"><label>Nome Completo</label><input id="s1_nome" type="text"></div>
+        <div class="field"><label>CPF</label><input id="s1_cpf" type="text" oninput="maskCPF(this)" maxlength="14"></div>
+        <div class="field"><label>Nacionalidade</label><input id="s1_nac" type="text" value="BRASILEIRO(A)"></div>
+        <div class="field"><label>CEP</label><input id="s1_cep" type="text" oninput="onCEPInputForm(this,'s1')" maxlength="9"></div>
+        <div class="field full"><label>Logradouro</label><input id="s1_rua" type="text"></div>
+        <div class="field"><label>Número</label><input id="s1_num" type="text"></div>
+        <div class="field"><label>Complemento</label><input id="s1_comp" type="text"></div>
+        <div class="field"><label>Bairro</label><input id="s1_bairro" type="text"></div>
+        <div class="field"><label>Cidade</label><input id="s1_cid" type="text"></div>
+        <div class="field"><label>UF</label><input id="s1_uf" type="text" maxlength="2"></div>
+      </div>
+    </div>
+
+    <!-- OUTORGADO 2 (opcional) -->
+    <div class="form-section group-s">
+      <div class="form-section-header">
+        👔 Outorgado / Terceiro Operador 2
+        <label class="toggle-label"><input type="checkbox" id="toggle_s2" onchange="toggleSecao('s2', this.checked)"> Incluir</label>
+      </div>
+      <div class="form-section-body hidden" id="section_s2">
+        <div class="field full"><label>Nome Completo</label><input id="s2_nome" type="text" disabled></div>
+        <div class="field"><label>CPF</label><input id="s2_cpf" type="text" oninput="maskCPF(this)" maxlength="14" disabled></div>
+        <div class="field"><label>Nacionalidade</label><input id="s2_nac" type="text" value="BRASILEIRO(A)" disabled></div>
+        <div class="field"><label>CEP</label><input id="s2_cep" type="text" oninput="onCEPInputForm(this,'s2')" maxlength="9" disabled></div>
+        <div class="field full"><label>Logradouro</label><input id="s2_rua" type="text" disabled></div>
+        <div class="field"><label>Número</label><input id="s2_num" type="text" disabled></div>
+        <div class="field"><label>Complemento</label><input id="s2_comp" type="text" disabled></div>
+        <div class="field"><label>Bairro</label><input id="s2_bairro" type="text" disabled></div>
+        <div class="field"><label>Cidade</label><input id="s2_cid" type="text" disabled></div>
+        <div class="field"><label>UF</label><input id="s2_uf" type="text" maxlength="2" disabled></div>
+      </div>
+    </div>
+
+    <!-- OUTORGADO 3 (opcional) -->
+    <div class="form-section group-s">
+      <div class="form-section-header">
+        👔 Outorgado / Terceiro Operador 3
+        <label class="toggle-label"><input type="checkbox" id="toggle_s3" onchange="toggleSecao('s3', this.checked)"> Incluir</label>
+      </div>
+      <div class="form-section-body hidden" id="section_s3">
+        <div class="field full"><label>Nome Completo</label><input id="s3_nome" type="text" disabled></div>
+        <div class="field"><label>CPF</label><input id="s3_cpf" type="text" oninput="maskCPF(this)" maxlength="14" disabled></div>
+        <div class="field"><label>Nacionalidade</label><input id="s3_nac" type="text" value="BRASILEIRO(A)" disabled></div>
+        <div class="field"><label>CEP</label><input id="s3_cep" type="text" oninput="onCEPInputForm(this,'s3')" maxlength="9" disabled></div>
+        <div class="field full"><label>Logradouro</label><input id="s3_rua" type="text" disabled></div>
+        <div class="field"><label>Número</label><input id="s3_num" type="text" disabled></div>
+        <div class="field"><label>Complemento</label><input id="s3_comp" type="text" disabled></div>
+        <div class="field"><label>Bairro</label><input id="s3_bairro" type="text" disabled></div>
+        <div class="field"><label>Cidade</label><input id="s3_cid" type="text" disabled></div>
+        <div class="field"><label>UF</label><input id="s3_uf" type="text" maxlength="2" disabled></div>
+      </div>
+    </div>
+
+    <!-- GRUPO MENOR -->
+    <div class="form-section group-menor">
+      <div class="form-section-header">👨‍👧 Representante Legal</div>
+      <div class="form-section-body">
+        <div class="field full"><label>Nome Completo</label><input id="r_nome" type="text"></div>
+        <div class="field"><label>CPF</label><input id="r_cpf" type="text" oninput="maskCPF(this)" maxlength="14"></div>
+        <div class="field"><label>CEP</label><input id="r_cep" type="text" oninput="onCEPInputForm(this,'r')" maxlength="9"></div>
+        <div class="field full"><label>Logradouro</label><input id="r_rua" type="text"></div>
+        <div class="field"><label>Número</label><input id="r_num" type="text"></div>
+        <div class="field"><label>Complemento</label><input id="r_comp" type="text"></div>
+        <div class="field"><label>Bairro</label><input id="r_bairro" type="text"></div>
+        <div class="field"><label>Cidade</label><input id="r_cid" type="text"></div>
+        <div class="field"><label>UF</label><input id="r_uf" type="text" maxlength="2"></div>
+      </div>
+    </div>
+    <div class="form-section group-menor">
+      <div class="form-section-header">
+        👦 Menor Autorizado
+        <label class="toggle-label"><input type="checkbox" id="toggle_end_menor" onchange="copiarEnderecoRep()"> Mesmo endereço do representante</label>
+      </div>
+      <div class="form-section-body">
+        <div class="field full"><label>Nome Completo</label><input id="m_nome" type="text"></div>
+        <div class="field"><label>CPF</label><input id="m_cpf" type="text" oninput="maskCPF(this)" maxlength="14"></div>
+        <div class="field"><label>CEP</label><input id="m_cep" type="text" oninput="onCEPInputForm(this,'m')" maxlength="9"></div>
+        <div class="field full"><label>Logradouro</label><input id="m_rua" type="text"></div>
+        <div class="field"><label>Número</label><input id="m_num" type="text"></div>
+        <div class="field"><label>Complemento</label><input id="m_comp" type="text"></div>
+        <div class="field"><label>Bairro</label><input id="m_bairro" type="text"></div>
+        <div class="field"><label>Cidade</label><input id="m_cid" type="text"></div>
+        <div class="field"><label>UF</label><input id="m_uf" type="text" maxlength="2"></div>
+      </div>
+    </div>
+
+    <!-- GRUPO SAQUE -->
+    <div class="form-section group-saque">
+      <div class="form-section-header">💲 Valores e Dados Bancários</div>
+      <div class="form-section-body">
+        <div class="field"><label>Valor Principal (R$)</label><input id="sq_valor1" type="text" oninput="maskMoeda(this)" placeholder="R$ 0,00"></div>
+        <div class="field"><label>Por Extenso</label><input id="sq_extenso1" type="text" readonly></div>
+        <div class="field"><label>Valor Adicional (R$)</label><input id="sq_valor2" type="text" oninput="maskMoeda(this)" placeholder="Opcional"></div>
+        <div class="field"><label>Por Extenso</label><input id="sq_extenso2" type="text" readonly></div>
+        <div class="field"><label>CPF Titular da Conta</label><input id="sq_cpf_conta" type="text" oninput="maskCPF(this)" maxlength="14"></div>
+        <div class="field"><label>Tipo de Conta</label><select id="sq_tipo_conta"><option>CORRENTE</option><option>POUPANÇA</option></select></div>
+        <div class="field"><label>Banco</label><input id="sq_banco" type="text"></div>
+        <div class="field"><label>Agência</label><input id="sq_agencia" type="text"></div>
+        <div class="field"><label>Conta</label><input id="sq_conta" type="text"></div>
+        <div class="field"><label>Chave PIX</label><input id="sq_pix" type="text"></div>
+      </div>
+    </div>
+
+    <div class="format-bar" style="margin-top:16px;">
+      <button class="format-btn pdf" onclick="confirmarFormato('pdf','form')">📄 Baixar PDF</button>
+      <button class="format-btn word" onclick="confirmarFormato('docx','form')">📝 Baixar Word</button>
+    </div>
+  </div>
+
+  <!-- ===================== TELA CALCULADORA ===================== -->
+  <div id="tela-calc" class="screen">
+    <style>
+      .calc-wrap { font-family: 'DM Sans', sans-serif; }
+      .calc-wrap { --cp: #7c5cbf; --cp-light: #ede9f7; --cd: #1d1647; --tm: #655e8a; --bg: #f7f5fd; --bc: #e6e1f3; }
+      .calc-wrap .c-block { background:#faf9ff; border:1px solid var(--bc); border-radius:12px; padding:20px; margin-bottom:16px; }
+      .calc-wrap .c-title { font-size:11px; font-weight:700; color:var(--cp); text-transform:uppercase; letter-spacing:.5px; margin-bottom:14px; border-bottom:1px solid #eee; padding-bottom:6px; }
+      .calc-wrap .c-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:14px; }
+      .calc-wrap .c-group { display:flex; flex-direction:column; gap:5px; }
+      .calc-wrap .c-group label { font-size:11px; font-weight:700; text-transform:uppercase; color:var(--tm); letter-spacing:.3px; }
+      .calc-wrap .c-group input, .calc-wrap .c-group select { padding:10px 12px; border:1px solid var(--bc); border-radius:7px; font-size:14px; color:var(--cd); font-weight:500; background:white; font-family:inherit; transition:border .15s; }
+      .calc-wrap .c-group input:focus, .calc-wrap .c-group select:focus { outline:none; border-color:var(--cp); box-shadow:0 0 0 3px rgba(124,92,191,.1); }
+      .calc-wrap .c-matrix { background:#fdfdff; border:1px dashed var(--cp); padding:18px; border-radius:12px; margin-bottom:16px; }
+      .calc-wrap .c-matrix-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(110px,1fr)); gap:10px; margin-top:10px; }
+      .calc-wrap .c-mx { display:flex; flex-direction:column; gap:4px; }
+      .calc-wrap .c-mx label { font-size:11px; font-weight:600; color:var(--tm); }
+      .calc-wrap .c-mx input { padding:8px; border:1px solid var(--bc); border-radius:6px; font-size:13px; text-align:center; font-family:inherit; }
+      .calc-wrap .c-btns { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:16px; }
+      .calc-wrap .c-btn { color:white; border:none; padding:14px; font-size:14px; font-weight:600; border-radius:8px; cursor:pointer; font-family:inherit; display:flex; justify-content:center; align-items:center; gap:8px; transition:opacity .15s; }
+      .calc-wrap .c-btn:hover { opacity:.88; }
+      .calc-wrap .c-btn-pdf { background:var(--cp); }
+      .calc-wrap .c-btn-chat { background:#10b981; }
+      .calc-wrap .c-preview { background:#fafafa; border:1px solid var(--bc); border-radius:12px; padding:18px; margin-bottom:20px; }
+      .calc-wrap .c-textarea { width:100%; height:230px; border:1px solid var(--bc); border-radius:8px; padding:14px; font-family:'DM Mono',monospace; font-size:12px; line-height:1.6; color:#1f2937; resize:vertical; background:white; box-sizing:border-box; }
+      .calc-wrap #c-pdf-report { border:1px solid var(--bc); border-radius:12px; overflow:hidden; background:white; }
+      .calc-wrap .c-report-header { background:var(--cp); color:white; padding:28px 24px; display:flex; justify-content:space-between; align-items:center; }
+      .calc-wrap .c-report-header h2 { margin:0; font-size:20px; font-weight:700; }
+      .calc-wrap .c-report-header p { margin:5px 0 0; font-size:13px; opacity:.85; }
+      .calc-wrap .c-rules { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:8px; background:var(--cp-light); padding:12px 24px; font-size:12px; color:var(--cd); font-weight:600; }
+      .calc-wrap .c-table-sec { padding:24px; }
+      .calc-wrap table { width:100%; border-collapse:collapse; }
+      .calc-wrap th { text-align:left; padding:10px 14px; font-size:11px; text-transform:uppercase; color:var(--tm); border-bottom:2px solid var(--bc); }
+      .calc-wrap td { padding:12px 14px; border-bottom:1px solid #f6f4fc; font-size:13px; color:var(--cd); }
+      .calc-wrap .c-row-hl { background:#faf9ff; font-weight:600; }
+      .calc-wrap .c-row-total { background:var(--cd); }
+      .calc-wrap .c-row-total td { color:white; font-weight:700; font-size:15px; border:none; padding:16px 14px; }
+      .calc-wrap .text-right { text-align:right; }
+      .calc-wrap .c-footer { padding:0 24px 28px; font-size:11px; color:var(--tm); line-height:1.6; }
+      .calc-wrap .c-mode-toggle {
+        display:flex; background:#f0f2f5; border-radius:10px; padding:4px;
+        margin-bottom:16px; gap:4px;
+      }
+      .calc-wrap .c-mode-btn {
+        flex:1; padding:10px; border:none; border-radius:7px; font-size:13px;
+        font-weight:600; cursor:pointer; font-family:inherit;
+        background:transparent; color:var(--tm); transition:all .15s;
+      }
+      .calc-wrap .c-mode-btn.active {
+        background:white; color:var(--cd);
+        box-shadow:0 1px 4px rgba(0,0,0,.1);
+      }
+      .calc-wrap .c-mode-btn.pix.active { color:#00a86b; }
+
+      .calc-wrap .pix-badge {
+        display:inline-block; background:#e6f9f2; color:#00a86b;
+        font-size:10px; font-weight:700; border-radius:4px;
+        padding:2px 6px; margin-left:6px; vertical-align:middle;
+      }
+      .calc-wrap .c-img-zone {
+        display:block; width:100%; box-sizing:border-box;
+        border: 2px dashed #d97706; border-radius:12px; background:#fffbeb;
+        padding:28px 20px; text-align:center; cursor:pointer;
+        margin-bottom:16px; position:relative; transition:background .15s;
+      }
+      .calc-wrap .c-img-zone:hover { background:#fef3c7; }
+      .calc-wrap .c-img-zone.drag-over { background:#fef3c7; border-color:#b45309; }
+      .calc-wrap .c-img-zone input[type=file] { display:none; }
+      .calc-wrap .c-img-zone img { max-height:180px; border-radius:8px; margin-top:10px; max-width:100%; object-fit:contain; }
+      .calc-wrap .c-img-zone-text { font-size:14px; font-weight:600; color:#92400e; }
+      .calc-wrap .c-img-zone-sub { font-size:12px; color:#b45309; margin-top:4px; }
+      .calc-wrap .c-extract-btn {
+        width:100%; padding:12px; border:none; border-radius:8px;
+        background:#d97706; color:white; font-size:14px; font-weight:600;
+        cursor:pointer; font-family:inherit; display:flex;
+        justify-content:center; align-items:center; gap:8px;
+        margin-bottom:16px; transition:opacity .15s;
+      }
+      .calc-wrap .c-extract-btn:hover { opacity:.88; }
+      .calc-wrap .c-extract-btn:disabled { opacity:.5; cursor:not-allowed; }
+      .calc-wrap .c-extract-status {
+        padding:10px 14px; border-radius:8px; font-size:13px;
+        margin-bottom:12px; display:none; align-items:center; gap:8px;
+      }
+      .calc-wrap .c-extract-status.visible { display:flex; }
+      .calc-wrap .c-extract-status.info { background:#fffbeb; color:#92400e; }
+      .calc-wrap .c-extract-status.success { background:#f0fdf4; color:#166534; }
+      .calc-wrap .c-extract-status.error { background:#fee2e2; color:#b91c1c; }
+    </style>
+
+    <div class="calc-wrap">
+
+      <!-- ZONAS DE UPLOAD -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
+
+        <div>
+          <div style="font-size:11px;font-weight:700;text-transform:uppercase;color:#92400e;letter-spacing:.4px;margin-bottom:6px;">Taxas Gerais</div>
+          <label class="c-img-zone" id="c_imgZone" for="c_imgInput"
+            ondragover="event.preventDefault();this.classList.add('drag-over')"
+            ondragleave="this.classList.remove('drag-over')"
+            ondrop="calcHandleDrop(event,'geral')" style="margin-bottom:0;">
+            <input type="file" id="c_imgInput" accept="image/*" onchange="calcHandleFile(this.files[0],'geral')">
+            <div style="font-size:22px;margin-bottom:6px;">📸</div>
+            <div class="c-img-zone-text" id="c_imgZoneLabel" style="font-size:13px;">Cola ou arraste aqui</div>
+            <div class="c-img-zone-sub" style="font-size:11px;">Processamento, gateway, garantia, saque...</div>
+            <img id="c_imgPreview" style="display:none;margin-top:8px;max-height:120px;border-radius:6px;max-width:100%;">
+          </label>
+        </div>
+
+        <div>
+          <div style="font-size:11px;font-weight:700;text-transform:uppercase;color:#1e40af;letter-spacing:.4px;margin-bottom:6px;">Taxas de Parcelamento</div>
+
+          <label class="c-img-zone" id="c_imgZone2" for="c_imgInput2"
+            ondragover="event.preventDefault();this.classList.add('drag-over')"
+            ondragleave="this.classList.remove('drag-over')"
+            ondrop="calcHandleDrop(event,'parc')"
+            style="margin-bottom:0;border-color:#3b82f6;background:#eff6ff;">
+            <input type="file" id="c_imgInput2" accept="image/*" onchange="calcHandleFile(this.files[0],'parc')">
+            <div style="font-size:22px;margin-bottom:6px;">💳</div>
+            <div class="c-img-zone-text" id="c_imgZoneLabel2" style="font-size:13px;color:#1e40af;">Cola ou arraste aqui</div>
+            <div class="c-img-zone-sub" style="font-size:11px;color:#3b82f6;">Ou cole captura de tabela personalizada</div>
+            <img id="c_imgPreview2" style="display:none;margin-top:8px;max-height:120px;border-radius:6px;max-width:100%;">
+          </label>
+        </div>
+
+      </div>
+
+      <button class="c-extract-btn" id="c_extractBtn" onclick="calcExtrairTaxas()" disabled>
+        🤖 Identificar Taxas com IA
+      </button>
+
+      <div class="c-extract-status" id="c_extractStatus"></div>
+
+      <!-- MODO CARTÃO / PIX -->
+      <div class="c-mode-toggle">
+        <button class="c-mode-btn active" id="c_modeCard" onclick="calcSetMode('card')">💳 Cartão de Crédito</button>
+        <button class="c-mode-btn pix" id="c_modePix" onclick="calcSetMode('pix')">🔑 PIX</button>
+      </div>
+
+      <!-- TABELA DE PARCELAMENTO PRÉ-CONFIGURADA -->
+      <div class="c-block" style="background:#eff6ff;border-color:#93c5fd;">
+        <div class="c-title" style="color:#1e40af;">💳 Tabela de Parcelamento</div>
+        <div class="c-group">
+          <label>Selecionar tabela padrão</label>
+          <select id="c_tabelaParc" onchange="calcAplicarTabela(this.value)" style="border-color:#93c5fd;background:white;">
+            <option value="">— Zerado (preencher manualmente ou por imagem) —</option>
+            <option value="simples_219">Simples 2,19% ao mês</option>
+            <option value="simples_249">Simples 2,49% ao mês</option>
+            <option value="composta_299">Composta 2,99% ao mês (prestações fixas)</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="c-block" id="c_card1Card">
+        <div class="c-title">1. Dados Fundamentais da Venda</div>
+        <div class="c-grid">
+          <div class="c-group">
+            <label>Tipo de Valor Informado</label>
+            <select id="c_tipoOrigemValor">
+              <option value="checkout_com_juros" selected>Valor Total do Pedido (com juros inclusos)</option>
+              <option value="produto_seco">Valor Base Seco (Sem os juros do parcelamento)</option>
+            </select>
+          </div>
+          <div class="c-group">
+            <label>Valor Digitado (R$)</label>
+            <input type="text" id="c_vendaBruta" value="" placeholder="0,00">
+          </div>
+          <div class="c-group">
+            <label>Nº de Parcelas do Pedido</label>
+            <select id="c_numParcelas">
+              <option value="1">1x</option><option value="2">2x</option><option value="3">3x</option>
+              <option value="4">4x</option><option value="5">5x</option><option value="6">6x</option>
+              <option value="7">7x</option><option value="8">8x</option><option value="9">9x</option>
+              <option value="10" selected>10x</option><option value="11">11x</option><option value="12">12x</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div class="c-block" id="c_card1Pix" style="display:none;">
+        <div class="c-title">1. Dados da Transação PIX</div>
+        <div class="c-grid">
+          <div class="c-group">
+            <label>Total Pago (R$)</label>
+            <input type="text" id="c_vendaBrutaPix" value="" placeholder="0,00"
+              oninput="document.getElementById('c_vendaBruta').value=this.value; this.value=calcMaskMoney(this.value); document.getElementById('c_vendaBruta').value=this.value; calcUpdate();">
+          </div>
+        </div>
+      </div>
+
+      <div class="c-block" id="c_blockParc">
+        <div class="c-title">2. Estratégia de Parcelamento (Juros)</div>
+        <div class="c-grid">
+          <div class="c-group">
+            <label>Modelo de Cálculo</label>
+            <select id="c_modeloCalculo">
+              <option value="auto_mensal" selected>Automático: Multiplicar ao Mês</option>
+              <option value="auto_fixo">Automático: Taxa Fixa Única</option>
+              <option value="custom">Personalizado: Tabela Mês a Mês</option>
+            </select>
+          </div>
+          <div class="c-group" id="c_groupTaxaLinear">
+            <label>Taxa de Parcelamento Base (%)</label>
+            <input type="text" id="c_taxaParc" value="2,19 %">
+          </div>
+          <div class="c-group">
+            <label>Repassar Juros Pro Cliente?</label>
+            <select id="c_repassarJuros">
+              <option value="sim" selected>Sim (Cliente paga os juros no checkout)</option>
+              <option value="nao">Não (Absorver tudo na margem)</option>
+              <option value="parcial">Absorção Parcial (Até Parcela X)</option>
+            </select>
+          </div>
+          <div class="c-group" id="c_groupAbsorcao" style="display:none;">
+            <label>Absorver Juros Até Parcela X</label>
+            <input type="number" id="c_limiteAbsorcao" value="3" min="1" max="12">
+          </div>
+        </div>
+      </div>
+
+      <div class="c-block">
+        <div class="c-title">3. Custos Fixos do Gateway (Appmax)</div>
+        <div class="c-grid">
+          <div class="c-group"><label>Taxa Appmax Base (%)</label><input type="text" id="c_taxaProc" value="4,99 %"></div>
+          <div class="c-group"><label>Gateway Fixo (R$)</label><input type="text" id="c_taxaGate" value="0,99"></div>
+        </div>
+      </div>
+
+      <div class="c-block" id="c_blockRetencao">
+        <div class="c-title">4. Retenção, Prazos e Saque</div>
+        <div class="c-grid">
+          <div class="c-group"><label>Garantia Base (%)</label><input type="text" id="c_taxaGar" value="7,50 %"></div>
+          <div class="c-group"><label>Liberação da Garantia (Dias)</label><input type="number" id="c_prazoGarantia" value="30" min="0"></div>
+          <div class="c-group" id="c_groupAnte"><label>Taxa de Antecipação (%)</label><input type="text" id="c_taxaAnte" value="1,49 %"></div>
+          <div class="c-group">
+            <label>Configuração de Saque</label>
+            <select id="c_statusSaque">
+              <option value="cobrar" selected>Cobrar Taxa Fixa (R$ 3,67)</option>
+              <option value="isento">Não contém / Isento</option>
+            </select>
+          </div>
+          <div class="c-group" id="c_groupValorSaque">
+            <label>Valor da Taxa de Saque (R$)</label>
+            <input type="text" id="c_taxaSaque" value="3,67">
+          </div>
+        </div>
+      </div>
+
+      <div class="c-matrix" id="c_matrixPanel" style="display:none;">
+        <div class="c-title">Tabela de Parcelamento Customizada (Taxa Final Acumulada por Mês)</div>
+        <div class="c-matrix-grid">
+          <div class="c-mx"><label>1x (%)</label><input id="cm1" value="0,00 %"></div>
+          <div class="c-mx"><label>2x (%)</label><input id="cm2" value="0,00 %"></div>
+          <div class="c-mx"><label>3x (%)</label><input id="cm3" value="0,00 %"></div>
+          <div class="c-mx"><label>4x (%)</label><input id="cm4" value="0,00 %"></div>
+          <div class="c-mx"><label>5x (%)</label><input id="cm5" value="0,00 %"></div>
+          <div class="c-mx"><label>6x (%)</label><input id="cm6" value="0,00 %"></div>
+          <div class="c-mx"><label>7x (%)</label><input id="cm7" value="0,00 %"></div>
+          <div class="c-mx"><label>8x (%)</label><input id="cm8" value="0,00 %"></div>
+          <div class="c-mx"><label>9x (%)</label><input id="cm9" value="0,00 %"></div>
+          <div class="c-mx"><label>10x (%)</label><input id="cm10" value="0,00 %"></div>
+          <div class="c-mx"><label>11x (%)</label><input id="cm11" value="0,00 %"></div>
+          <div class="c-mx"><label>12x (%)</label><input id="cm12" value="0,00 %"></div>
+        </div>
+      </div>
+
+      <div class="c-btns">
+        <button class="c-btn c-btn-pdf" onclick="calcGerarPDF()">📄 Baixar Relatório PDF</button>
+        <button class="c-btn c-btn-chat" onclick="calcCopiarChat()">📋 Copiar Texto para Chat</button>
+      </div>
+
+      <div class="c-preview">
+        <div class="section-label" style="margin-bottom:8px;">Texto para o Cliente (Editável)</div>
+        <textarea id="c_chatTextarea" class="c-textarea"></textarea>
+      </div>
+
+      <div id="c-pdf-report">
+        <div class="c-report-header">
+          <div><h2>Análise Estratégica de Margem</h2><p>Demonstrativo de auditoria alinhado com o extrato Appmax</p></div>
+          <div style="font-weight:800;font-size:18px;color:white;">app<span style="opacity:.7">max</span></div>
+        </div>
+        <div class="c-rules">
+          <span>Checkout: <b id="c_lCheckout">R$ 0,00</b></span>
+          <span>Parcelas: <b id="c_lParcelas">0</b>x</span>
+          <span>Garantia: <b id="c_lGarantiaTxt">R$ 0,00</b></span>
+          <span>Saque: <b id="c_lSaqueTxt">R$ 0,00</b></span>
+        </div>
+        <div class="c-table-sec">
+          <table>
+            <thead><tr>
+              <th>Fluxo de Entrada e Descontos</th>
+              <th class="text-right">30 Dias</th>
+              <th class="text-right" id="c_thAnt">Antecipado</th>
+            </tr></thead>
+            <tbody>
+              <tr><td><b>Valor Total da Transação (Checkout)</b></td><td class="text-right" id="c_vBruto30">R$ 0,00</td><td class="text-right" id="c_vBrutoAnt">R$ 0,00</td></tr>
+              <tr><td>Taxa de Processamento Appmax Base</td><td class="text-right" id="c_vProc30">-</td><td class="text-right" id="c_vProcAnt">-</td></tr>
+              <tr><td>Taxa Fixa de Gateway / Antifraude</td><td class="text-right" id="c_vGate30">-</td><td class="text-right" id="c_vGateAnt">-</td></tr>
+              <tr><td>Retenção dos Juros de Parcelamento</td><td class="text-right" id="c_vParc30">-</td><td class="text-right" id="c_vParcAnt">-</td></tr>
+              <tr class="c-row-hl"><td><b>Total Líquido do Pedido na Tela</b></td><td class="text-right" id="c_vLiq30">R$ 0,00</td><td class="text-right" id="c_vLiqAnt">R$ 0,00</td></tr>
+              <tr><td>Retenção de Garantia (Não antecipável)</td><td class="text-right" id="c_vGar30">-</td><td class="text-right" id="c_vGarAnt">-</td></tr>
+              <tr><td>Desconto de Antecipação Comercial</td><td class="text-right" id="c_vAnte30">R$ 0,00</td><td class="text-right" id="c_vAnteAnt">-</td></tr>
+              <tr><td>Tarifa de Saque / Transferência</td><td class="text-right" id="c_vSaque30">-</td><td class="text-right" id="c_vSaqueAnt">-</td></tr>
+            </tbody>
+          </table>
+
+          <!-- RESUMO FINAL -->
+          <div style="margin-top:16px;border-radius:10px;overflow:hidden;border:1px solid var(--bc);">
+
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 18px;background:#1e3a5f;color:white;">
+              <div>
+                <div id="c_lblAnt" style="font-size:10px;font-weight:700;text-transform:uppercase;opacity:.75;letter-spacing:.5px;">Disponível para Antecipação</div>
+                <div style="font-size:18px;font-weight:700;margin-top:3px;" id="c_vFinalAnt">R$ 0,00</div>
+              </div>
+              <div style="font-size:22px;opacity:.6;">⚡</div>
+            </div>
+
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 18px;background:#2d4a6b;color:white;border-top:1px solid rgba(255,255,255,.1);">
+              <div>
+                <div style="font-size:10px;font-weight:700;text-transform:uppercase;opacity:.75;letter-spacing:.5px;">Valor Não Antecipável · Liberado em <span id="c_prazoLabel">30</span> dias (<span id="c_dataLib">--/--/----</span>)</div>
+                <div style="font-size:18px;font-weight:700;margin-top:3px;" id="c_vGarFinal">R$ 0,00</div>
+              </div>
+              <div style="font-size:22px;opacity:.6;">🔒</div>
+            </div>
+
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:18px 18px;background:var(--cp);color:white;border-top:1px solid rgba(255,255,255,.1);">
+              <div>
+                <div style="font-size:10px;font-weight:700;text-transform:uppercase;opacity:.8;letter-spacing:.5px;">Total Líquido Real</div>
+                <div style="font-size:22px;font-weight:800;margin-top:3px;" id="c_vFinal30">R$ 0,00</div>
+              </div>
+              <div style="font-size:22px;opacity:.7;">💰</div>
+            </div>
+
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /page -->
+
+<!-- FORMAT MODAL -->
+<!-- format modal removed -->
+
+<script>
+// ============================================================
+// CONFIGURAÇÃO DA API
+// Para usar no GitHub Pages, coloque sua chave Claude aqui:
+// ============================================================
+const GROQ_API_KEY = 'sua-chave-groq-aqui'; // Ex: 'gsk_...'
+
+// Configura worker do PDF.js
+pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+// ============================================================
+// ESTADO GLOBAL
+// ============================================================
+let docAtual = '';
+let telaAtual = 1;
+
+// ============================================================
+// NAVEGAÇÃO
+// ============================================================
+let telaHistorico = [];
+
+function irTela(id) {
+  telaHistorico.push(telaAtual);
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  const el = typeof id === 'number' 
+    ? document.getElementById('tela-' + id) 
+    : document.getElementById(id);
+  if (el) el.classList.add('active');
+  telaAtual = id;
+  document.getElementById('btn-voltar').classList.toggle('visible', telaHistorico.length > 0);
+  // Show/hide review extras
+  if (id === 'tela-calc') {
+    setTimeout(calcInit, 50);
+  }
+  if (id === 'tela-review') {
+    const swapBtn = document.getElementById('swap-menor-btn');
+    const bankingDiv = document.getElementById('saque-banking-review');
+    const dataOrigBloco = document.getElementById('data-original-bloco');
+    if (swapBtn) swapBtn.classList.toggle('hidden', docAtual !== 'MENOR');
+    if (bankingDiv) bankingDiv.classList.toggle('hidden', docAtual !== 'SAQUE');
+    if (dataOrigBloco) dataOrigBloco.classList.toggle('hidden', !docAtual.startsWith('REVOG'));
+  }
+  window.scrollTo(0, 0);
+}
+
+function voltarTela() {
+  // Always go back to tela-1 from anywhere
+  if (telaHistorico.length > 0) {
+    const prev = telaHistorico.pop();
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+    const el = typeof prev === 'number' 
+      ? document.getElementById('tela-' + prev) 
+      : document.getElementById(prev);
+    if (el) el.classList.add('active');
+    telaAtual = prev;
+    document.getElementById('btn-voltar').classList.toggle('visible', telaHistorico.length > 0);
+    window.scrollTo(0, 0);
+  }
+}
+
+
+// ============================================================
+// HUB — tela unificada de seleção + upload
+// ============================================================
+let hubFile1 = null;
+let hubFile2 = null;
+
+function hubOnSelectChange(val) {
+  docAtual = val;
+  const btn = document.getElementById('hub-btn-ai');
+  if (btn) btn.disabled = !val;
+
+  // Slot 2 label context
+  const slot2Label = document.getElementById('hub-slot2-label');
+  const slot2Wrap  = document.getElementById('hub-slot2-wrap');
+  if (slot2Label && slot2Wrap) {
+    if (val === 'PJ' || val === 'SAQUE' || val === 'REVOG_PJ') {
+      slot2Wrap.style.display = '';
+      slot2Label.textContent = val === 'SAQUE' ? 'Cartão CNPJ (dados da empresa)' : 'Cartão CNPJ / QSA';
+    } else {
+      slot2Wrap.style.display = 'none';
+    }
+  }
+}
+
+function hubHandleFile(file, slot) {
+  if (!file) return;
+  if (slot === 1) {
+    hubFile1 = file;
+    const lbl = document.getElementById('hub-file1-label');
+    if (lbl) lbl.innerHTML = `<span class="upload-success">✅ ${file.name}</span>`;
+  } else {
+    hubFile2 = file;
+    const lbl = document.getElementById('hub-file2-label');
+    if (lbl) lbl.innerHTML = `<span class="upload-success" style="color:#166534;">✅ ${file.name}</span>`;
+  }
+}
+
+function hubHandleDrop(event, slot) {
+  event.preventDefault();
+  const zoneId = slot === 1 ? 'hub-drop1' : 'hub-drop2';
+  document.getElementById(zoneId)?.classList.remove('hub-drag');
+  const file = event.dataTransfer?.files[0];
+  if (file) hubHandleFile(file, slot);
+}
+
+function hubSetStatus(tipo, msg) {
+  const el = document.getElementById('hub-status');
+  if (!el) return;
+  el.className = `status-bar ${tipo} visible`;
+  el.textContent = msg;
+}
+
+async function hubExtrair() {
+  if (!docAtual) return;
+
+  const texto = document.getElementById('hub-texto')?.value?.trim() || '';
+  if (!hubFile1 && !texto) {
+    hubSetStatus('error', '⚠️ Carregue um arquivo ou cole o texto antes de extrair.');
+    return;
+  }
+
+  hubSetStatus('info', '⏳ Processando...');
+  mostrarLoading(true);
+  document.getElementById('hub-btn-ai').disabled = true;
+
+  try {
+    let textoFinal = texto;
+    if (hubFile1) {
+      if (hubFile1.type === 'application/pdf') {
+        textoFinal = await extrairTextoPDF(hubFile1);
+      } else {
+        // image — will use base64 path (handled separately if needed)
+        textoFinal = texto || '[imagem carregada]';
+      }
+    }
+
+    let textoQSA = '';
+    if (hubFile2) {
+      if (hubFile2.type === 'application/pdf') {
+        textoQSA = await extrairTextoPDF(hubFile2);
+      }
+    }
+
+    const textoCompleto = textoFinal + (textoQSA ? '\n\n--- CARTÃO CNPJ / QSA ---\n\n' + textoQSA : '');
+
+    const resp = await fetch('https://sparkling-grass-bb3d.bolhasdeluz.workers.dev', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ texto: textoCompleto, docType: docAtual })
+    });
+
+    if (!resp.ok) {
+      const errText = await resp.text();
+      throw new Error(`Erro ${resp.status} no Worker: ${errText.slice(0,200)}`);
+    }
+
+    const data = await resp.json();
+    if (!data.choices?.[0]) throw new Error(data.error?.message || 'Resposta inválida');
+
+    let dadosRaw = data.choices[0].message.content.replace(/```json|```/g,'').trim();
+    const dados = JSON.parse(dadosRaw);
+
+    mostrarReview(dados);
+    hubSetStatus('success', '✅ Dados extraídos! Revise e confirme os papéis.');
+    irTela('tela-review');
+
+  } catch(e) {
+    hubSetStatus('error', '❌ Erro ao extrair: ' + e.message);
+    console.error(e);
+  } finally {
+    mostrarLoading(false);
+    document.getElementById('hub-btn-ai').disabled = false;
+  }
+}
+
+function hubManual() {
+  if (!docAtual) {
+    hubSetStatus('error', '⚠️ Selecione o tipo de documento primeiro.');
+    return;
+  }
+  configurarGrupos(docAtual);
+  irTela(3);
+}
+
+// Init hub on load — hide slot2 by default
+document.addEventListener('DOMContentLoaded', () => {
+  const slot2 = document.getElementById('hub-slot2-wrap');
+  if (slot2) slot2.style.display = 'none';
+});
+
+function selecionarDoc(tipo) {
+  docAtual = tipo;
+  const labels = { PJ: 'Lote PJ — Procuração + Termo', PF: 'Lote PF — Procuração + Termo', MENOR: 'Termo de Menor', SAQUE: 'Termo de Saque' };
+  document.getElementById('t2-titulo').textContent = labels[tipo] || tipo;
+  configurarGrupos(tipo);
+  // Mostra segundo upload só para PJ
+  const qsaContainer = document.getElementById('upload-qsa-container');
+  if (qsaContainer) qsaContainer.classList.toggle('hidden', tipo !== 'PJ' && tipo !== 'SAQUE');
+  // Update QSA label for SAQUE
+  const qsaLbl = document.getElementById('upload-qsa-label');
+  if (qsaLbl) qsaLbl.textContent = tipo === 'SAQUE' 
+    ? 'Clique para selecionar o Cartão CNPJ (dados da empresa)' 
+    : 'Clique para selecionar o Cartão CNPJ (QSA)';
+  irTela(2);
+}
+
+function configurarGrupos(tipo) {
+  const isPJ = tipo === 'PJ', isPF = tipo === 'PF', isMenor = tipo === 'MENOR', isSaque = tipo === 'SAQUE';
+  show('.group-pj', isPJ || isSaque);
+  show('.group-p1', isPJ || isPF || isSaque);
+  show('.group-p-extra', isPJ);
+  show('.group-s', isPJ || isPF);
+  show('.group-menor', isMenor);
+  show('.group-saque', isSaque);
+
+  const lbl = document.getElementById('lbl-p1');
+  if (lbl) lbl.textContent = isSaque ? '👨‍💼 Representante Legal' : isPF ? '👤 Parceiro / Outorgante' : '👤 Outorgante / Parceiro 1';
+}
+
+function show(selector, visible) {
+  document.querySelectorAll(selector).forEach(el => {
+    el.classList.toggle('group-hidden', !visible);
+  });
+}
+
+function irParaFormulario() {
+  if (docAtual) configurarGrupos(docAtual);
+  irTela(3);
+}
+
+// ============================================================
+// PDF UPLOAD
+// ============================================================
+function onPdfSelecionado(input, labelId) {
+  const lbl = document.getElementById(labelId || 'upload-label');
+  if (input.files[0] && lbl) {
+    lbl.innerHTML = `<span class="upload-success">✅ ${input.files[0].name}</span>`;
+  }
+}
+
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result.split(',')[1]);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+// ============================================================
+// EXTRAÇÃO DE TEXTO DO PDF (PDF.js)
+// ============================================================
+async function extrairTextoPDF(file) {
+  const arrayBuffer = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+  let texto = '';
+  for (let i = 1; i <= pdf.numPages; i++) {
+    const page = await pdf.getPage(i);
+    const content = await page.getTextContent();
+    texto += content.items.map(item => item.str).join(' ') + '\n';
+  }
+  return texto;
+}
+
+// ============================================================
+// EXTRAÇÃO COM IA (GROQ)
+// ============================================================
+async function extrairComIA() {
+  const fileInput = document.getElementById('file-pdf');
+  const fileQSA = document.getElementById('file-qsa');
+  const textoManual = document.getElementById('texto-manual').value.trim();
+
+  if (!fileInput.files[0] && !textoManual) {
+    setStatus('error', '⚠️ Faça upload de um PDF ou cole o texto antes de extrair.');
+    return;
+  }
+
+  setStatus('info', '⏳ Processando...');
+  mostrarLoading(true);
+  document.getElementById('btn-extrair').disabled = true;
+
+  const systemPrompt = `Você é um extrator de dados para documentos jurídicos brasileiros.
+Analise o conteúdo fornecido e retorne SOMENTE um JSON válido, sem markdown, sem explicações.
+Estrutura obrigatória:
+{
+  "pj_nome": "", "pj_cnpj": "", "pj_cep": "", "pj_rua": "", "pj_num": "", "pj_comp": "", "pj_bairro": "", "pj_cid": "", "pj_uf": "",
+  "p1_nome": "", "p1_cpf": "", "p1_nac": "BRASILEIRO(A)", "p1_cep": "", "p1_rua": "", "p1_num": "", "p1_comp": "", "p1_bairro": "", "p1_cid": "", "p1_uf": "",
+  "p2_nome": "", "p2_cpf": "", "p2_nac": "BRASILEIRO(A)", "p2_cep": "", "p2_rua": "", "p2_num": "", "p2_comp": "", "p2_bairro": "", "p2_cid": "", "p2_uf": "",
+  "p3_nome": "", "p3_cpf": "", "p3_nac": "BRASILEIRO(A)", "p3_cep": "", "p3_rua": "", "p3_num": "", "p3_comp": "", "p3_bairro": "", "p3_cid": "", "p3_uf": "",
+  "s1_nome": "", "s1_cpf": "", "s1_nac": "BRASILEIRO(A)", "s1_cep": "", "s1_rua": "", "s1_num": "", "s1_comp": "", "s1_bairro": "", "s1_cid": "", "s1_uf": "",
+  "s2_nome": "", "s2_cpf": "", "s2_nac": "BRASILEIRO(A)", "s2_cep": "", "s2_rua": "", "s2_num": "", "s2_comp": "", "s2_bairro": "", "s2_cid": "", "s2_uf": "",
+  "s3_nome": "", "s3_cpf": "", "s3_nac": "BRASILEIRO(A)", "s3_cep": "", "s3_rua": "", "s3_num": "", "s3_comp": "", "s3_bairro": "", "s3_cid": "", "s3_uf": ""
+}
+Contexto: pj_* = Pessoa Jurídica, p1/p2/p3 = sócios/representantes/outorgantes, s1/s2/s3 = outorgados/terceiros operadores.
+Para cartão CNPJ: preencha só pj_*. Deixe "" campos não encontrados. Nunca invente dados.`;
+
+  try {
+    let textoFinal = textoManual;
+    if (fileInput.files[0]) {
+      textoFinal = await extrairTextoPDF(fileInput.files[0]);
+      if (!textoFinal.trim()) throw new Error('Não foi possível extrair texto do PDF principal.');
+    }
+
+    // Se houver segundo PDF (QSA), extrai e envia junto
+    let textoQSA = '';
+    if (fileQSA && fileQSA.files[0]) {
+      textoQSA = await extrairTextoPDF(fileQSA.files[0]);
+    }
+    const textoCompleto = textoFinal + (textoQSA ? '\n\n--- CARTÃO CNPJ / QSA ---\n\n' + textoQSA : '');
+
+    const resp = await fetch('https://sparkling-grass-bb3d.bolhasdeluz.workers.dev', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ texto: textoCompleto, docType: docAtual })
+    });
+
+    if (!resp.ok) {
+      const errText = await resp.text();
+      throw new Error(`Erro ${resp.status} no Worker: ${errText.slice(0,200)}`);
+    }
+
+    const data = await resp.json();
+
+    // Diagnóstico: se a resposta não tem o formato esperado
+    if (!data.choices || !data.choices[0]) {
+      const detalhe = data.error?.message || JSON.stringify(data).slice(0, 300);
+      throw new Error('Resposta inesperada do Worker: ' + detalhe);
+    }
+
+    let dadosRaw = data.choices[0].message.content;
+    // Remove possíveis backticks de markdown
+    dadosRaw = dadosRaw.replace(/```json|```/g, '').trim();
+    const dados = JSON.parse(dadosRaw);
+
+    mostrarReview(dados);
+    setStatus('success', '✅ Dados extraídos com sucesso! Confirme os papéis e gere.');
+
+  } catch (e) {
+    setStatus('error', '❌ Erro ao extrair: ' + e.message);
+    console.error(e);
+  } finally {
+    mostrarLoading(false);
+    document.getElementById('btn-extrair').disabled = false;
+  }
+}
+
+
+// ============================================================
+// REVIEW — CARDS COM PAPEL
+// ============================================================
+let entidadesExtraidas = [];
+
+function detectarEntidades(dados) {
+  // SAQUE — empresa + representante (banking filled manually after)
+  if (docAtual === 'SAQUE') {
+    return [
+      {
+        id: 'pj', tipo: 'empresa', role: 'pj',
+        nome: dados.pj_nome || 'Empresa',
+        doc: dados.pj_cnpj ? 'CNPJ: ' + dados.pj_cnpj : '',
+        campos: { nome: dados.pj_nome||'', cnpj: dados.pj_cnpj||'', cep: dados.pj_cep||'',
+          rua: dados.pj_rua||'', num: dados.pj_num||'', comp: dados.pj_comp||'',
+          bairro: dados.pj_bairro||'', cid: dados.pj_cid||'', uf: dados.pj_uf||'' },
+        fixedLabel: '🏢 Empresa (Autorizante)', fixedRole: true
+      },
+      {
+        id: 'rep', tipo: 'pessoa_saque', role: 'rep',
+        nome: dados.rep_nome || dados.p1_nome || 'Representante Legal',
+        doc: (dados.rep_cpf||dados.p1_cpf) ? 'CPF: ' + (dados.rep_cpf||dados.p1_cpf) : '',
+        campos: {
+          nome: dados.rep_nome||dados.p1_nome||'',
+          cpf:  dados.rep_cpf||dados.p1_cpf||'',
+          nac:  'BRASILEIRO(A)'
+        },
+        fixedLabel: '👤 Representante Legal', fixedRole: true
+      }
+    ];
+  }
+
+  // MENOR — estrutura fixa: representante + menor
+  if (docAtual === 'MENOR') {
+    return [
+      {
+        id: 'rep', tipo: 'pessoa', role: 'rep',
+        nome: dados.rep_nome || 'Representante Legal',
+        doc: dados.rep_cpf ? 'CPF: ' + dados.rep_cpf : '',
+        campos: {
+          nome: dados.rep_nome||'', cpf: dados.rep_cpf||'', nac: 'BRASILEIRO(A)',
+          cep: dados.rep_cep||'', rua: dados.rep_rua||'', num: dados.rep_num||'',
+          comp: dados.rep_comp||'', bairro: dados.rep_bairro||'',
+          cid: dados.rep_cid||'', uf: dados.rep_uf||''
+        },
+        fixedLabel: '👨‍👧 Representante Legal', fixedRole: true
+      },
+      {
+        id: 'men', tipo: 'pessoa', role: 'men',
+        nome: dados.men_nome || 'Menor Autorizado',
+        doc: dados.men_cpf ? 'CPF: ' + dados.men_cpf : '',
+        campos: {
+          nome: dados.men_nome||'', cpf: dados.men_cpf||'', nac: 'BRASILEIRO(A)',
+          cep: dados.men_cep||'', rua: dados.men_rua||'', num: dados.men_num||'',
+          comp: dados.men_comp||'', bairro: dados.men_bairro||'',
+          cid: dados.men_cid||'', uf: dados.men_uf||''
+        },
+        fixedLabel: '👦 Menor Autorizado', fixedRole: true,
+        mesmoEnd: dados.men_mesmo_end || false
+      }
+    ];
+  }
+
+  // REVOG_PF — outorgante (p1) + outorgados (s1, s2, s3)
+  if (docAtual === 'REVOG_PF') {
+    const ents = [];
+    ents.push({
+      id: 'p1', tipo: 'pessoa', role: 'p1',
+      nome: dados.p1_nome || 'Outorgante',
+      doc: dados.p1_cpf ? 'CPF: ' + dados.p1_cpf : '',
+      campos: { nome: dados.p1_nome||'', cpf: dados.p1_cpf||'', nac: dados.p1_nac||'BRASILEIRO(A)',
+        cep: dados.p1_cep||'', rua: dados.p1_rua||'', num: dados.p1_num||'',
+        comp: dados.p1_comp||'', bairro: dados.p1_bairro||'', cid: dados.p1_cid||'', uf: dados.p1_uf||'' },
+      fixedLabel: '👤 Outorgante', fixedRole: true
+    });
+    ['s1','s2','s3'].forEach((pre, i) => {
+      if (dados[pre+'_nome']) ents.push({
+        id: pre, tipo: 'pessoa', role: pre,
+        nome: dados[pre+'_nome'],
+        doc: dados[pre+'_cpf'] ? 'CPF: ' + dados[pre+'_cpf'] : '',
+        campos: { nome: dados[pre+'_nome']||'', cpf: dados[pre+'_cpf']||'', nac: dados[pre+'_nac']||'BRASILEIRO(A)',
+          cep: dados[pre+'_cep']||'', rua: dados[pre+'_rua']||'', num: dados[pre+'_num']||'',
+          comp: dados[pre+'_comp']||'', bairro: dados[pre+'_bairro']||'', cid: dados[pre+'_cid']||'', uf: dados[pre+'_uf']||'' },
+        fixedLabel: `👤 Outorgado ${i > 0 ? i+1 : ''}`.trim(), fixedRole: true
+      });
+    });
+    return ents;
+  }
+
+  // REVOG_PJ — empresa + representantes + outorgados (sócios)
+  if (docAtual === 'REVOG_PJ') {
+    const ents = [];
+    if (dados.pj_nome) ents.push({
+      id: 'pj', tipo: 'empresa', role: 'pj',
+      nome: dados.pj_nome,
+      doc: dados.pj_cnpj ? 'CNPJ: ' + dados.pj_cnpj : '',
+      campos: { nome: dados.pj_nome||'', cnpj: dados.pj_cnpj||'', cep: dados.pj_cep||'',
+        rua: dados.pj_rua||'', num: dados.pj_num||'', comp: dados.pj_comp||'',
+        bairro: dados.pj_bairro||'', cid: dados.pj_cid||'', uf: dados.pj_uf||'' },
+      fixedLabel: '🏢 Empresa (Outorgante PJ)', fixedRole: true
+    });
+    ['p1','p2','p3'].forEach((pre, i) => {
+      if (dados[pre+'_nome']) ents.push({
+        id: pre, tipo: 'pessoa', role: pre,
+        nome: dados[pre+'_nome'],
+        doc: dados[pre+'_cpf'] ? 'CPF: ' + dados[pre+'_cpf'] : '',
+        campos: { nome: dados[pre+'_nome']||'', cpf: dados[pre+'_cpf']||'', nac: dados[pre+'_nac']||'BRASILEIRO(A)',
+          cep: dados[pre+'_cep']||'', rua: dados[pre+'_rua']||'', num: dados[pre+'_num']||'',
+          comp: dados[pre+'_comp']||'', bairro: dados[pre+'_bairro']||'', cid: dados[pre+'_cid']||'', uf: dados[pre+'_uf']||'' },
+        fixedLabel: `👤 Representante ${i > 0 ? i+1 : ''}`.trim(), fixedRole: true
+      });
+    });
+    ['s1','s2','s3'].forEach((pre, i) => {
+      if (dados[pre+'_nome']) ents.push({
+        id: pre, tipo: 'pessoa', role: pre,
+        nome: dados[pre+'_nome'],
+        doc: dados[pre+'_cpf'] ? 'CPF: ' + dados[pre+'_cpf'] : '',
+        campos: { nome: dados[pre+'_nome']||'', cpf: dados[pre+'_cpf']||'', nac: dados[pre+'_nac']||'BRASILEIRO(A)',
+          cep: dados[pre+'_cep']||'', rua: dados[pre+'_rua']||'', num: dados[pre+'_num']||'',
+          comp: dados[pre+'_comp']||'', bairro: dados[pre+'_bairro']||'', cid: dados[pre+'_cid']||'', uf: dados[pre+'_uf']||'' },
+        fixedLabel: `👤 Outorgado (Sócio ${i+1})`, fixedRole: true
+      });
+    });
+    return ents;
+  }
+
+  const ents = [];
+  if (dados.pj_nome) {
+    ents.push({
+      id: 'pj', tipo: 'empresa',
+      nome: dados.pj_nome,
+      doc: dados.pj_cnpj ? 'CNPJ: ' + dados.pj_cnpj : '',
+      campos: { nome: dados.pj_nome, cnpj: dados.pj_cnpj, cep: dados.pj_cep, rua: dados.pj_rua, num: dados.pj_num, comp: dados.pj_comp, bairro: dados.pj_bairro, cid: dados.pj_cid, uf: dados.pj_uf },
+      role: 'pj'
+    });
+  }
+  ['p1','p2','p3','s1','s2','s3'].forEach(pre => {
+    if (dados[pre + '_nome']) {
+      ents.push({
+        id: pre, tipo: 'pessoa',
+        nome: dados[pre + '_nome'],
+        doc: dados[pre + '_cpf'] ? 'CPF: ' + dados[pre + '_cpf'] : '',
+        campos: { nome: dados[pre+'_nome'], cpf: dados[pre+'_cpf'], nac: dados[pre+'_nac'] || 'BRASILEIRO(A)', cep: dados[pre+'_cep'], rua: dados[pre+'_rua'], num: dados[pre+'_num'], comp: dados[pre+'_comp'], bairro: dados[pre+'_bairro'], cid: dados[pre+'_cid'], uf: dados[pre+'_uf'] },
+        role: pre
+      });
+    }
+  });
+  return ents;
+}
+
+function getRoleOptions(tipo, roleAtual) {
+  const opts = tipo === 'empresa'
+    ? [['pj', 'Empresa (Outorgante PJ)']]
+    : [
+        ['p1', 'Outorgante / Parceiro 1'],
+        ['p2', 'Outorgante / Parceiro 2'],
+        ['p3', 'Outorgante / Parceiro 3'],
+        ['s1', 'Outorgado / Terceiro Operador 1'],
+        ['s2', 'Outorgado / Terceiro Operador 2'],
+        ['s3', 'Outorgado / Terceiro Operador 3'],
+      ];
+  return opts.map(([val, label]) =>
+    `<option value="${val}" ${val === roleAtual ? 'selected' : ''}>${label}</option>`
+  ).join('');
+}
+
+const CAMPOS_OBRIGATORIOS_PF = [
+  { chave: 'cpf',    label: 'CPF' },
+  { chave: 'rua',    label: 'Endereço' },
+  { chave: 'num',    label: 'Número' },
+  { chave: 'bairro', label: 'Bairro' },
+  { chave: 'cep',    label: 'CEP' },
+  { chave: 'cid',    label: 'Cidade' },
+  { chave: 'uf',     label: 'UF' },
+  { chave: 'nac',    label: 'Nacionalidade' },
+];
+const CAMPOS_OBRIGATORIOS_PJ = [
+  { chave: 'cnpj',   label: 'CNPJ' },
+  { chave: 'cep',    label: 'CEP' },
+  { chave: 'rua',    label: 'Endereço' },
+  { chave: 'num',    label: 'Número' },
+  { chave: 'bairro', label: 'Bairro' },
+  { chave: 'cid',    label: 'Cidade' },
+  { chave: 'uf',     label: 'UF' },
+];
+
+function verificarFaltando(ent) {
+  if (ent.tipo === 'pessoa_saque') {
+    return [
+      { chave: 'nome', label: 'Nome' },
+      { chave: 'cpf',  label: 'CPF'  }
+    ].filter(c => !ent.campos[c.chave] || !ent.campos[c.chave].trim()).map(c => c.label);
+  }
+  const campos = ent.tipo === 'empresa' ? CAMPOS_OBRIGATORIOS_PJ : CAMPOS_OBRIGATORIOS_PF;
+  return campos
+    .filter(c => !ent.campos[c.chave] || ent.campos[c.chave].toString().trim() === '')
+    .map(c => c.label);
+}
+
+function buildMesmoEndCheck(ent) {
+  return `<div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border);">
+    <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;">
+      <input type="checkbox" id="check_mesmo_end_${ent.id}" 
+        ${ent.mesmoEnd ? 'checked' : ''}
+        onchange="toggleMesmoEndereco(this.checked, '${ent.id}')"
+        style="accent-color:var(--purple);width:15px;height:15px;">
+      Mesmo endereço do Representante Legal
+    </label>
+  </div>`;
+}
+
+function toggleMesmoEndereco(checked, menId) {
+  const rep = entidadesExtraidas.find(e => e.id === 'rep');
+  const men = entidadesExtraidas.find(e => e.id === menId);
+  if (!rep || !men) return;
+  ['cep','rua','num','comp','bairro','cid','uf'].forEach(key => {
+    const el = document.getElementById('field_' + menId + '_' + key);
+    if (el) {
+      if (checked) {
+        el.value = rep.campos[key] || '';
+        el.disabled = true;
+        men.campos[key] = el.value;
+      } else {
+        el.disabled = false;
+      }
+    }
+  });
+  if (men) men.mesmoEnd = checked;
+}
+
+function buildFieldsGrid(ent) {
+  const isPJ = ent.tipo === 'empresa';
+
+  // Representante do SAQUE — só nome, CPF e nacionalidade
+  if (ent.tipo === 'pessoa_saque') {
+    const campos = [
+      { key: 'nome', label: 'Nome Completo', full: true },
+      { key: 'cpf',  label: 'CPF' },
+      { key: 'nac',  label: 'Nacionalidade', default: 'BRASILEIRO(A)' },
+    ];
+    return `<div class="fields-grid">` + campos.map(c => {
+      const val = ent.campos[c.key] || c.default || '';
+      if (val && c.default && !ent.campos[c.key]) ent.campos[c.key] = val;
+      const missing = !val && !c.optional ? ' missing' : '';
+      return `<div class="field-inline ${c.full ? 'field-full' : ''}">
+        <label>${c.label}${!c.optional && !val ? ' ⚠' : ''}</label>
+        <input type="text" 
+          id="field_${ent.id}_${c.key}" 
+          value="${val.toString().replace(/"/g,'&quot;')}"
+          placeholder="${c.optional ? 'Opcional' : 'Preencher'}"
+          class="${missing}"
+          oninput="atualizarCampoEnt('${ent.id}','${c.key}',this)">
+      </div>`;
+    }).join('') + `</div>`;
+  }
+
+  const campos = isPJ ? [
+    { key: 'nome',   label: 'Razão Social', full: true  },
+    { key: 'cnpj',   label: 'CNPJ'                      },
+    { key: 'cep',    label: 'CEP'                       },
+    { key: 'rua',    label: 'Logradouro',   full: true  },
+    { key: 'num',    label: 'Número'                    },
+    { key: 'comp',   label: 'Complemento', optional: true },
+    { key: 'bairro', label: 'Bairro'                    },
+    { key: 'cid',    label: 'Cidade'                    },
+    { key: 'uf',     label: 'UF'                        },
+  ] : [
+    { key: 'nome',   label: 'Nome Completo', full: true },
+    { key: 'cpf',    label: 'CPF'                       },
+    { key: 'nac',    label: 'Nacionalidade', default: 'BRASILEIRO(A)' },
+    { key: 'cep',    label: 'CEP'                       },
+    { key: 'rua',    label: 'Logradouro',   full: true  },
+    { key: 'num',    label: 'Número'                    },
+    { key: 'comp',   label: 'Complemento', optional: true },
+    { key: 'bairro', label: 'Bairro'                    },
+    { key: 'cid',    label: 'Cidade'                    },
+    { key: 'uf',     label: 'UF'                        },
+  ];
+
+  return `<div class="fields-grid">` + campos.map(c => {
+    const val = ent.campos[c.key] || c.default || '';
+    if (val && c.default && !ent.campos[c.key]) ent.campos[c.key] = val;
+    const missing = !val && !c.optional ? ' missing' : '';
+    return `<div class="field-inline ${c.full ? 'field-full' : ''}">
+      <label>${c.label}${!c.optional && !val ? ' ⚠' : ''}</label>
+      <input type="text" 
+        id="field_${ent.id}_${c.key}" 
+        value="${val.toString().replace(/"/g,'&quot;')}"
+        placeholder="${c.optional ? 'Opcional' : 'Preencher'}"
+        class="${missing}"
+        oninput="atualizarCampoEnt('${ent.id}','${c.key}',this)">
+    </div>`;
+  }).join('') + `</div>`;
+}
+
+function atualizarCampoEnt(entId, campoKey, input) {
+  const ent = entidadesExtraidas.find(e => e.id === entId);
+  if (!ent) return;
+
+  // Máscara CEP
+  if (campoKey === 'cep') {
+    let v = input.value.replace(/\D/g,'');
+    if (v.length > 5) v = v.slice(0,5) + '-' + v.slice(5,8);
+    input.value = v;
+    ent.campos[campoKey] = v;
+
+    // Busca automática ao completar 8 dígitos
+    if (v.replace(/\D/g,'').length === 8) {
+      buscarCEP(v, (addr) => {
+        ['rua','bairro','cid','uf'].forEach(key => {
+          const el = document.getElementById('field_' + entId + '_' + key);
+          if (el) {
+            el.value = addr[key] || el.value;
+            el.classList.remove('missing');
+            ent.campos[key] = el.value;
+          }
+        });
+        // Reavalia badges após preencher
+        atualizarBadge(entId);
+      });
+    }
+  } else {
+    ent.campos[campoKey] = input.value;
+  }
+
+  input.classList.toggle('missing', !input.value.trim());
+  atualizarBadge(entId);
+}
+
+function atualizarBadge(entId) {
+  const ent = entidadesExtraidas.find(e => e.id === entId);
+  if (!ent) return;
+  const faltando = verificarFaltando(ent);
+  const card = document.getElementById('ecard_' + entId);
+  if (card) {
+    card.classList.toggle('tem-pendencia', faltando.length > 0);
+    card.classList.toggle('completo', faltando.length === 0);
+    const badge = card.querySelector('.entity-card-missing');
+    if (badge) {
+      badge.innerHTML = faltando.length > 0
+        ? faltando.map(f => `<span class="missing-tag">⚠ ${f}</span>`).join('')
+        : `<span style="color:var(--green);font-size:12px;font-weight:600;">✅ Completo</span>`;
+    }
+  }
+}
+
+function toggleCard(entId) {
+  const card = document.getElementById('ecard_' + entId);
+  if (card) card.classList.toggle('expanded');
+}
+
+function mostrarReview(dados) {
+  entidadesExtraidas = detectarEntidades(dados);
+
+  // Auto-fill data original se extraída
+  if (dados.data_proc_original) {
+    const dateInput = document.getElementById('data_original_input');
+    if (dateInput) {
+      // Convert DD/MM/AAAA → AAAA-MM-DD for date input
+      const parts = dados.data_proc_original.split('/');
+      if (parts.length === 3) {
+        dateInput.value = `${parts[2]}-${parts[1].padStart(2,'0')}-${parts[0].padStart(2,'0')}`;
+      }
+    }
+  }
+
+  const container = document.getElementById('review-cards');
+  container.innerHTML = '';
+
+  if (entidadesExtraidas.length === 0) {
+    container.innerHTML = '<div class="card" style="text-align:center;color:var(--muted);">Nenhum dado identificado. Tente preencher manualmente.</div>';
+    irTela('tela-review');
+    return;
+  }
+
+  entidadesExtraidas.forEach(ent => {
+    const faltando = verificarFaltando(ent);
+    const temPend = faltando.length > 0;
+
+    const missingHtml = temPend
+      ? faltando.map(f => `<span class="missing-tag">⚠ ${f}</span>`).join('')
+      : `<span style="color:var(--green);font-size:12px;font-weight:600;">✅ Completo</span>`;
+
+    const div = document.createElement('div');
+    div.className = 'entity-card ' + (temPend ? 'tem-pendencia' : 'completo');
+    div.id = 'ecard_' + ent.id;
+
+    const roleHtml = ent.fixedRole
+      ? `<div class="entity-card-role"><span style="font-size:13px;font-weight:600;color:var(--purple);padding:8px 12px;border:1px solid var(--border);border-radius:7px;background:#f8f7fc;">${ent.fixedLabel}</span></div>`
+      : `<div class="entity-card-role" onclick="event.stopPropagation()"><select id="role_${ent.id}">${getRoleOptions(ent.tipo, ent.role)}</select></div>`;
+
+    div.innerHTML = `
+      <div class="entity-card-header" onclick="toggleCard('${ent.id}')">
+        <div class="entity-card-icon">${ent.tipo === 'empresa' ? '🏢' : '👤'}</div>
+        <div class="entity-card-info">
+          <div class="entity-card-name">${ent.nome || (ent.fixedLabel || 'Sem nome')}</div>
+          <div class="entity-card-doc">${ent.doc}</div>
+          <div class="entity-card-missing">${missingHtml}</div>
+        </div>
+        ${roleHtml}
+        <div class="expand-arrow">▼</div>
+      </div>
+      <div class="entity-card-fields">
+        ${buildFieldsGrid(ent)}
+        ${ent.id === 'men' ? buildMesmoEndCheck(ent) : ''}
+      </div>
+    `;
+    container.appendChild(div);
+
+    // Auto-expande cards com pendência
+    if (temPend) setTimeout(() => div.classList.add('expanded'), 50);
+  });
+
+  irTela('tela-review');
+}
+
+function gerarDocsFromReview() {
+  // Primeiro sincroniza campos editados nos cards de volta para ent.campos
+  entidadesExtraidas.forEach(ent => {
+    const allKeys = ['nome','cnpj','cpf','nac','cep','rua','num','comp','bairro','cid','uf'];
+    allKeys.forEach(key => {
+      const el = document.getElementById(`field_${ent.id}_${key}`);
+      if (el && !el.disabled) ent.campos[key] = el.value;
+    });
+  });
+
+  // SAQUE — fluxo próprio: empresa + representante + banking
+  if (docAtual === 'SAQUE') {
+    const pj  = entidadesExtraidas.find(e => e.id === 'pj');
+    const rep = entidadesExtraidas.find(e => e.id === 'rep');
+    // Sync cards → form fields
+    if (pj) {
+      ['nome','cnpj','cep','rua','num','comp','bairro','cid','uf'].forEach(k => {
+        const cardEl = document.getElementById('field_pj_' + k);
+        if (cardEl) pj.campos[k] = cardEl.value;
+        const formEl = document.getElementById('pj_' + k);
+        if (formEl) formEl.value = (pj.campos[k]||'').toUpperCase();
+      });
+    }
+    if (rep) {
+      ['nome','cpf','nac'].forEach(k => {
+        const cardEl = document.getElementById('field_rep_' + k);
+        if (cardEl) rep.campos[k] = cardEl.value;
+      });
+      const p1Nome = document.getElementById('p1_nome'); if (p1Nome) p1Nome.value = (rep.campos.nome||'').toUpperCase();
+      const p1Cpf  = document.getElementById('p1_cpf');  if (p1Cpf)  p1Cpf.value  = (rep.campos.cpf||'').toUpperCase();
+    }
+    const pendencias = [];
+    [pj, rep].filter(Boolean).forEach(ent => {
+      const faltando = verificarFaltando(ent);
+      if (faltando.length > 0) pendencias.push({ nome: ent.fixedLabel || ent.nome, campos: faltando });
+    });
+    if (pendencias.length > 0) mostrarPendencias(pendencias);
+    else gerarDocumentos();
+    return;
+  }
+
+  // MENOR — fluxo próprio
+  if (docAtual === 'MENOR') {
+    const rep = entidadesExtraidas.find(e => e.id === 'rep');
+    const men = entidadesExtraidas.find(e => e.id === 'men');
+    if (rep) { Object.keys(rep.campos).forEach(k => { const el = document.getElementById('r_'+k); if (el) el.value = (rep.campos[k]||'').toUpperCase(); }); }
+    if (men) { Object.keys(men.campos).forEach(k => { const el = document.getElementById('m_'+k); if (el) el.value = (men.campos[k]||'').toUpperCase(); }); }
+    
+    // Pendências
+    const pendencias = [];
+    [rep, men].filter(Boolean).forEach(ent => {
+      const faltando = verificarFaltando(ent);
+      if (faltando.length > 0) pendencias.push({ nome: ent.fixedLabel || ent.nome, campos: faltando });
+    });
+    if (pendencias.length > 0) mostrarPendencias(pendencias);
+    else gerarDocumentos();
+    return;
+  }
+
+  const remapped = {};
+  const pendencias = [];
+
+  entidadesExtraidas.forEach(ent => {
+    const roleEl = document.getElementById('role_' + ent.id);
+    const role = roleEl ? roleEl.value : ent.role;
+
+    if (role === 'pj') {
+      Object.assign(remapped, {
+        pj_nome: ent.campos.nome, pj_cnpj: ent.campos.cnpj,
+        pj_cep: ent.campos.cep, pj_rua: ent.campos.rua, pj_num: ent.campos.num,
+        pj_comp: ent.campos.comp, pj_bairro: ent.campos.bairro,
+        pj_cid: ent.campos.cid, pj_uf: ent.campos.uf
+      });
+    } else {
+      remapped[role+'_nome']   = ent.campos.nome;
+      remapped[role+'_cpf']    = ent.campos.cpf;
+      remapped[role+'_nac']    = ent.campos.nac;
+      remapped[role+'_cep']    = ent.campos.cep;
+      remapped[role+'_rua']    = ent.campos.rua;
+      remapped[role+'_num']    = ent.campos.num;
+      remapped[role+'_comp']   = ent.campos.comp;
+      remapped[role+'_bairro'] = ent.campos.bairro;
+      remapped[role+'_cid']    = ent.campos.cid;
+      remapped[role+'_uf']     = ent.campos.uf;
+    }
+
+    // Verifica pendências
+    const faltando = verificarFaltando(ent);
+    if (faltando.length > 0) pendencias.push({ nome: ent.nome, campos: faltando });
+  });
+
+  // Preenche os campos do form
+  Object.keys(remapped).forEach(key => {
+    const el = document.getElementById(key);
+    if (el && remapped[key]) el.value = remapped[key].toString().toUpperCase();
+  });
+
+  // Ativa toggles para seções com dados
+  ['p2','p3','s2','s3'].forEach(pre => {
+    const toggle = document.getElementById('toggle_' + pre);
+    if (toggle && remapped[pre + '_nome']) {
+      toggle.checked = true;
+      toggleSecao(pre, true);
+    }
+  });
+
+  // Se tem pendências, mostra tela de pendências antes de gerar
+  if (pendencias.length > 0) {
+    mostrarPendencias(pendencias);
+  } else {
+    gerarDocumentos();
+  }
+}
+
+function mostrarPendencias(pendencias) {
+  const container = document.getElementById('pend-cards');
+  container.innerHTML = '';
+
+  const sub = document.getElementById('pend-sub');
+  sub.textContent = pendencias.length + ' pessoa(s) com dados incompletos. Os PDFs foram gerados com os dados disponíveis.';
+
+  pendencias.forEach(p => {
+    const div = document.createElement('div');
+    div.className = 'pend-card';
+    div.innerHTML = `
+      <div class="pend-card-nome">👤 ${p.nome}</div>
+      <div class="pend-tags">${p.campos.map(c => `<span class="pend-tag">${c}</span>`).join('')}</div>
+    `;
+    container.appendChild(div);
+  });
+
+  document.getElementById('pend-msg-texto').textContent = montarMensagem(pendencias);
+  irTela('tela-pendencias');
+  gerarDocumentos();
+}
+
+function montarMensagem(pendencias) {
+  const linhas = pendencias.map(p => {
+    const itens = p.campos.map(c => '    • ' + c).join('\n');
+    return p.nome + ':\n' + itens;
+  }).join('\n\n');
+  return 'Olá! Para concluir o cadastro, precisamos dos seguintes dados:\n\n' + linhas + '\n\nAssim que puder, por favor nos envie. Obrigado!';
+}
+
+function copiarMensagem() {
+  const texto = document.getElementById('pend-msg-texto').textContent;
+  const btn = document.getElementById('btn-copiar');
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(texto).then(() => {
+      btn.textContent = '✅ Copiado!'; btn.classList.add('copiado');
+      setTimeout(() => { btn.textContent = '📋 Copiar mensagem'; btn.classList.remove('copiado'); }, 2500);
+    });
+  } else {
+    const ta = document.createElement('textarea');
+    ta.value = texto; ta.style.position='fixed'; ta.style.opacity='0';
+    document.body.appendChild(ta); ta.focus(); ta.select();
+    document.execCommand('copy'); document.body.removeChild(ta);
+    btn.textContent = '✅ Copiado!';
+    setTimeout(() => { btn.textContent = '📋 Copiar mensagem'; }, 2500);
+  }
+}
+
+function preencherFormulario(dados) {
+  Object.keys(dados).forEach(key => {
+    const el = document.getElementById(key);
+    if (el && dados[key]) el.value = dados[key].toString().toUpperCase();
+  });
+  // Ativa toggles automaticamente para seções com dados
+  ['p2', 'p3', 's2', 's3'].forEach(prefix => {
+    const toggle = document.getElementById('toggle_' + prefix);
+    if (toggle && dados[prefix + '_nome']) {
+      toggle.checked = true;
+      toggleSecao(prefix, true);
+    }
+  });
+}
+
+function setStatus(tipo, msg) {
+  const bar = document.getElementById('status-bar');
+  bar.className = `status-bar ${tipo} visible`;
+  bar.textContent = msg;
+}
+
+function mostrarLoading(show) {
+  document.getElementById('loading-overlay').classList.toggle('visible', show);
+}
+
+// ============================================================
+// TOGGLE DE SEÇÕES OPCIONAIS
+// ============================================================
+function toggleSecao(prefix, ativo) {
+  const sec = document.getElementById('section_' + prefix);
+  if (!sec) return;
+  sec.classList.toggle('hidden', !ativo);
+  sec.querySelectorAll('input').forEach(i => {
+    i.disabled = !ativo;
+    if (!ativo) i.value = '';
+  });
+}
+
+function copiarEnderecoRep() {
+  const checked = document.getElementById('toggle_end_menor').checked;
+  ['cep','rua','num','comp','bairro','cid','uf'].forEach(c => {
+    const m = document.getElementById('m_' + c);
+    const r = document.getElementById('r_' + c);
+    if (m && r) { m.value = checked ? r.value : ''; m.disabled = checked; }
+  });
+}
+
+// ============================================================
+// MÁSCARAS
+// ============================================================
+function maskCPF(i) {
+  let v = i.value.replace(/\D/g,'');
+  v = v.replace(/(\d{3})(\d)/,'$1.$2').replace(/(\d{3})(\d)/,'$1.$2').replace(/(\d{3})(\d{1,2})$/,'$1-$2');
+  i.value = v;
+}
+function maskCNPJ(i) {
+  let v = i.value.replace(/\D/g,'');
+  v = v.replace(/^(\d{2})(\d)/,'$1.$2').replace(/^(\d{2})\.(\d{3})(\d)/,'$1.$2.$3').replace(/\.(\d{3})(\d)/,'.$1/$2').replace(/(\d{4})(\d)/,'$1-$2');
+  i.value = v;
+}
+function maskCEP(i) {
+  let v = i.value.replace(/\D/g,'');
+  i.value = v.replace(/^(\d{5})(\d)/,'$1-$2');
+}
+
+async function buscarCEP(cep, callbacks) {
+  const nums = cep.replace(/\D/g,'');
+  if (nums.length !== 8) return;
+  try {
+    const resp = await fetch(`https://viacep.com.br/ws/${nums}/json/`);
+    const data = await resp.json();
+    if (data.erro) return;
+    callbacks({
+      rua:    (data.logradouro || '').toUpperCase(),
+      bairro: (data.bairro     || '').toUpperCase(),
+      cid:    (data.localidade || '').toUpperCase(),
+      uf:     (data.uf         || '').toUpperCase(),
+    });
+  } catch(e) {}
+}
+
+// Busca CEP nos campos do formulário fixo (tela-3)
+function onCEPBlurForm(input, prefix) {
+  const nums = input.value.replace(/\D/g,'');
+  if (nums.length !== 8) return;
+  buscarCEP(input.value, (addr) => {
+    const set = (sfx, val) => {
+      const el = document.getElementById(prefix + sfx);
+      if (el && !el.disabled) el.value = val;
+    };
+    set('_rua',    addr.rua);
+    set('_bairro', addr.bairro);
+    set('_cid',    addr.cid);
+    set('_uf',     addr.uf);
+  });
+}
+
+function onCEPInputForm(input, prefix) {
+  maskCEP(input);
+  const nums = input.value.replace(/\D/g,'');
+  if (nums.length === 8) onCEPBlurForm(input, prefix);
+}
+
+// Busca CEP nos cards expandidos (tela-review)
+function onCEPBlurCard(input, entId) {
+  buscarCEP(input.value, (addr) => {
+    const ent = entidadesExtraidas.find(e => e.id === entId);
+    const fill = (key) => {
+      const el = document.getElementById(`field_${entId}_${key}`);
+      if (el && !el.value) {
+        el.value = addr[key] || '';
+        el.classList.remove('missing');
+        if (ent) ent.campos[key] = el.value;
+        atualizarCampoEnt(entId, key, el);
+      }
+    };
+    ['rua','bairro','cid','uf'].forEach(fill);
+  });
+}
+function maskMoeda(i) {
+  let v = i.value.replace(/\D/g,'');
+  const extId = i.id.replace('valor','extenso');
+  const extEl = document.getElementById(extId);
+  if (!v) { i.value = ''; if (extEl) extEl.value = ''; return; }
+  const num = parseInt(v) / 100;
+  i.value = num.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  if (extEl) extEl.value = numeroExtenso(num).toUpperCase();
+}
+
+// ============================================================
+// NÚMERO POR EXTENSO
+// ============================================================
+function numeroExtenso(valor) {
+  if (!valor || isNaN(valor)) return '';
+  valor = parseFloat(valor);
+  if (valor === 0) return 'zero reais';
+  const un = ['','um','dois','três','quatro','cinco','seis','sete','oito','nove'];
+  const d10 = ['dez','onze','doze','treze','quatorze','quinze','dezesseis','dezessete','dezoito','dezenove'];
+  const dez = ['','','vinte','trinta','quarenta','cinquenta','sessenta','setenta','oitenta','noventa'];
+  const cen = ['','cento','duzentos','trezentos','quatrocentos','quinhentos','seiscentos','setecentos','oitocentos','novecentos'];
+  function g(n) {
+    if (n === 100) return 'cem';
+    let c = Math.floor(n/100), d = Math.floor((n%100)/10), u = n%10, o = '';
+    if (c) o += cen[c];
+    if (d===1) o += (o?' e ':'')+d10[u];
+    else { if (d>1) o += (o?' e ':'')+dez[d]; if (u>0) o += (o?' e ':'')+un[u]; }
+    return o;
+  }
+  let pi = Math.floor(valor), ct = Math.round((valor-pi)*100), r = '';
+  if (pi >= 1000) { let m = Math.floor(pi/1000); pi %= 1000; r += (m===1?'mil':g(m)+' mil'); if (pi>0) r += (pi<100||pi%100===0?' e ':', '); }
+  if (pi > 0) r += g(pi);
+  if (r) r += (Math.floor(valor)===1?' real':' reais');
+  if (ct > 0) { if (r) r += ' e '; r += g(ct)+(ct===1?' centavo':' centavos'); }
+  return r.charAt(0).toUpperCase()+r.slice(1);
+}
+
+// ============================================================
+// AUXILIARES
+// ============================================================
+function v(id) { const el = document.getElementById(id); return el ? el.value.toUpperCase() : ''; }
+function comp(id) { const val = v(id); return val ? ` / ${val}` : ''; }
+function dataExtenso() {
+  const m = ['JANEIRO','FEVEREIRO','MARÇO','ABRIL','MAIO','JUNHO','JULHO','AGOSTO','SETEMBRO','OUTUBRO','NOVEMBRO','DEZEMBRO'];
+  const d = new Date();
+  return `${d.getDate()} DE ${m[d.getMonth()]} DE ${d.getFullYear()}`;
+}
+
+// ============================================================
+// GERAÇÃO DE PDF
+// ============================================================
+// ============================================================
+// FORMAT MODAL
+// ============================================================
+let formatPendingAction = null;
+let formatoAtual = 'pdf'; // 'pdf' or 'txt'
+
+function confirmarFormato(formato, acao) {
+  formatoAtual = formato;
+  if (acao === 'review') gerarDocsFromReview();
+  else gerarDocumentos();
+}
+
+// maskMoeda for inline banking fields in review screen
+function maskMoedaInline(input, extensoId) {
+  let v2 = input.value.replace(/\D/g,'');
+  const extEl = document.getElementById(extensoId);
+  if (!v2) { input.value = ''; if (extEl) extEl.value = ''; return; }
+  const num = parseInt(v2) / 100;
+  input.value = num.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  if (extEl) extEl.value = numeroExtenso(num).toUpperCase();
+}
+
+// Swap representante <-> menor
+function swapMenorRep() {
+  const rep = entidadesExtraidas.find(e => e.id === 'rep');
+  const men = entidadesExtraidas.find(e => e.id === 'men');
+  if (!rep || !men) return;
+
+  // Swap campos
+  const tmpCampos = {...rep.campos};
+  rep.campos = {...men.campos};
+  men.campos = {...tmpCampos};
+
+  const tmpNome = rep.nome; rep.nome = men.nome; men.nome = tmpNome;
+  const tmpDoc = rep.doc; rep.doc = men.doc; men.doc = tmpDoc;
+
+  // Re-render cards
+  const repCard = document.getElementById('ecard_rep');
+  const menCard = document.getElementById('ecard_men');
+  if (repCard) {
+    repCard.querySelector('.entity-card-name').textContent = rep.nome;
+    repCard.querySelector('.entity-card-doc').textContent = rep.doc;
+    Object.keys(rep.campos).forEach(k => {
+      const el = document.getElementById('field_rep_' + k);
+      if (el) el.value = rep.campos[k] || '';
+    });
+  }
+  if (menCard) {
+    menCard.querySelector('.entity-card-name').textContent = men.nome;
+    menCard.querySelector('.entity-card-doc').textContent = men.doc;
+    Object.keys(men.campos).forEach(k => {
+      const el = document.getElementById('field_men_' + k);
+      if (el) el.value = men.campos[k] || '';
+    });
+  }
+}
+
+// ============================================================
+function syncFormFromCards() {
+  if (!entidadesExtraidas || !entidadesExtraidas.length) return;
+  entidadesExtraidas.forEach(ent => {
+    // Read any edits from expanded card fields back into ent.campos
+    const allKeys = ['nome','cnpj','cpf','nac','cep','rua','num','comp','bairro','cid','uf'];
+    allKeys.forEach(key => {
+      const cardEl = document.getElementById('field_' + ent.id + '_' + key);
+      if (cardEl && !cardEl.disabled && cardEl.value) ent.campos[key] = cardEl.value;
+    });
+
+    // Now write ent.campos into form fields based on role
+    const role = document.getElementById('role_' + ent.id)?.value || ent.role || ent.id;
+    const set = (formId, val) => {
+      const el = document.getElementById(formId);
+      if (el && val) el.value = val.toString().toUpperCase();
+    };
+
+    if (role === 'pj' || ent.id === 'pj') {
+      set('pj_nome',   ent.campos.nome);
+      set('pj_cnpj',   ent.campos.cnpj);
+      set('pj_cep',    ent.campos.cep);
+      set('pj_rua',    ent.campos.rua);
+      set('pj_num',    ent.campos.num);
+      set('pj_comp',   ent.campos.comp);
+      set('pj_bairro', ent.campos.bairro);
+      set('pj_cid',    ent.campos.cid);
+      set('pj_uf',     ent.campos.uf);
+    } else if (role === 'rep') {
+      // SAQUE/MENOR representante → p1
+      set('p1_nome', ent.campos.nome);
+      set('p1_cpf',  ent.campos.cpf);
+      set('p1_nac',  ent.campos.nac || 'BRASILEIRO(A)');
+    } else if (['p1','p2','p3','s1','s2','s3'].includes(role)) {
+      set(role+'_nome',   ent.campos.nome);
+      set(role+'_cpf',    ent.campos.cpf);
+      set(role+'_nac',    ent.campos.nac || 'BRASILEIRO(A)');
+      set(role+'_cep',    ent.campos.cep);
+      set(role+'_rua',    ent.campos.rua);
+      set(role+'_num',    ent.campos.num);
+      set(role+'_comp',   ent.campos.comp);
+      set(role+'_bairro', ent.campos.bairro);
+      set(role+'_cid',    ent.campos.cid);
+      set(role+'_uf',     ent.campos.uf);
+      // Activate toggle for optional sections
+      if (['p2','p3','s2','s3'].includes(role)) {
+        const toggle = document.getElementById('toggle_' + role);
+        if (toggle && !toggle.checked) { toggle.checked = true; toggleSecao(role, true); }
+      }
+    } else if (role === 'men') {
+      // MENOR menor → m_*
+      set('m_nome',   ent.campos.nome);
+      set('m_cpf',    ent.campos.cpf);
+      set('m_cep',    ent.campos.cep);
+      set('m_rua',    ent.campos.rua);
+      set('m_num',    ent.campos.num);
+      set('m_comp',   ent.campos.comp);
+      set('m_bairro', ent.campos.bairro);
+      set('m_cid',    ent.campos.cid);
+      set('m_uf',     ent.campos.uf);
+    }
+  });
+}
+
+function gerarDocumentos() {
+  syncFormFromCards(); // Always sync cards → form before generating
+  if (formatoAtual === 'docx') {
+    if (docAtual === 'MENOR') { gerarDocx('MENOR'); return; }
+    if (docAtual === 'SAQUE') { gerarDocx('SAQUE'); return; }
+    if (docAtual === 'REVOG_PF') { gerarDocx('REVOG_PF'); return; }
+    if (docAtual === 'REVOG_PJ') { gerarDocx('REVOG_PJ'); return; }
+    if (docAtual === 'PJ') { gerarDocx('PROC_PJ'); setTimeout(() => gerarDocx('TERMO_PJ'), 400); }
+    if (docAtual === 'PF') { gerarDocx('PROC_PF'); setTimeout(() => gerarDocx('TERMO_PF'), 400); }
+    return;
+  }
+  if (typeof window.jspdf === 'undefined') { alert('jsPDF não carregou. Verifique a conexão.'); return; }
+  if (docAtual === 'MENOR') { gerarPDF('MENOR'); return; }
+  if (docAtual === 'SAQUE') { gerarPDF('SAQUE'); return; }
+  if (docAtual === 'REVOG_PF') { gerarPDF('REVOG_PF'); return; }
+  if (docAtual === 'REVOG_PJ') { gerarPDF('REVOG_PJ'); return; }
+  if (docAtual === 'PJ') { gerarPDF('PROC_PJ'); setTimeout(() => gerarPDF('TERMO_PJ'), 600); }
+  if (docAtual === 'PF') { gerarPDF('PROC_PF'); setTimeout(() => gerarPDF('TERMO_PF'), 600); }
+}
+
+function getDataOriginal() {
+  const el = document.getElementById('data_original_input');
+  if (!el || !el.value) return '___/___/______';
+  const [y,m,d] = el.value.split('-');
+  const meses = ['JANEIRO','FEVEREIRO','MARÇO','ABRIL','MAIO','JUNHO','JULHO','AGOSTO','SETEMBRO','OUTUBRO','NOVEMBRO','DEZEMBRO'];
+  return `${parseInt(d)} DE ${meses[parseInt(m)-1]} DE ${y}`;
+}
+
+
+// ============================================================
+// DOCX GENERATION (HTML-as-Word)
+// ============================================================
+function gerarDocx(tipo) {
+  const isPF = tipo.includes('PF');
+  const isProc = tipo.includes('PROC');
+
+  const pjEnt  = entidadesExtraidas ? entidadesExtraidas.find(e => e.id === 'pj')  : null;
+  const repEnt = entidadesExtraidas ? entidadesExtraidas.find(e => e.id === 'rep') : null;
+
+  const g = (ent, key, fb) => {
+    const cardEl = ent ? document.getElementById('field_' + ent.id + '_' + key) : null;
+    if (cardEl && cardEl.value) return cardEl.value.toUpperCase();
+    if (ent && ent.campos && ent.campos[key]) return ent.campos[key].toString().toUpperCase();
+    return v(fb);
+  };
+
+  const toggle_p2 = document.getElementById('toggle_p2');
+  const toggle_p3 = document.getElementById('toggle_p3');
+  const p2on = toggle_p2 ? toggle_p2.checked : !!v('p2_nome');
+  const p3on = toggle_p3 ? toggle_p3.checked : !!v('p3_nome');
+  const s2on = document.getElementById('toggle_s2')?.checked;
+  const s3on = document.getElementById('toggle_s3')?.checked;
+
+  let html = `<html xmlns:o='urn:schemas-microsoft-com:office:office' 
+    xmlns:w='urn:schemas-microsoft-com:office:word' 
+    xmlns='http://www.w3.org/TR/REC-html40'>
+  <head><meta charset='utf-8'><style>
+    body { font-family: Arial, sans-serif; font-size: 11pt; margin: 2cm; }
+    h1 { font-size: 13pt; text-align: center; margin-bottom: 20px; }
+    b { font-weight: bold; }
+    p { margin: 6px 0; }
+    .section { margin-top: 14px; }
+    .sig { margin-top: 40px; }
+  </style></head><body>`;
+
+  const p = (txt) => `<p>${txt || ''}</p>`;
+  const b = (txt) => `<b>${txt}</b>`;
+  const br = '<br>';
+
+  if (tipo === 'MENOR') {
+    const rep = entidadesExtraidas ? entidadesExtraidas.find(e => e.id === 'rep') : null;
+    const men = entidadesExtraidas ? entidadesExtraidas.find(e => e.id === 'men') : null;
+    const gR = (k,fb) => g(rep,k,fb); const gM = (k,fb) => g(men,k,fb);
+    const cR = gR('comp','r_comp'); const cM = gM('comp','m_comp');
+    html += `<h1>TERMO DE AUTORIZAÇÃO E RESPONSABILIDADE</h1>`;
+    html += `<p>${b('REPRESENTANTE LEGAL:')}</p>`;
+    html += p(`Nome: ${gR('nome','r_nome')}`);
+    html += p(`Documento de Identificação (CPF): ${gR('cpf','r_cpf')}`);
+    html += p(`Endereço: ${gR('rua','r_rua')}, ${gR('num','r_num')}${cR?', '+cR:''}, ${gR('bairro','r_bairro')} - ${gR('cid','r_cid')}/${gR('uf','r_uf')} - ${gR('cep','r_cep')}`);
+    html += `<br><p>${b('MENOR AUTORIZADO:')}</p>`;
+    html += p(`Nome: ${gM('nome','m_nome')}`);
+    html += p(`Documento de Identificação (CPF): ${gM('cpf','m_cpf')}`);
+    html += p(`Endereço: ${gM('rua','m_rua')}, ${gM('num','m_num')}${cM?', '+cM:''}, ${gM('bairro','m_bairro')} - ${gM('cid','m_cid')}/${gM('uf','m_uf')} - ${gM('cep','m_cep')}`);
+    html += `<br>${p('Este termo tem como objeto a autorização, desde o momento do credenciamento na Plataforma Appmax e por tempo indeterminado, pelo representante legal acima qualificado, para que o menor utilize a Plataforma, reconhecendo as diretrizes estabelecidas nos Termos de Uso e Política de Privacidade da Appmax, disponíveis no site oficial da Appmax https://appmax.com.br')}`;
+    html += p('O representante legal, ao assinar este termo, se compromete a:');
+    html += p('a) Supervisionar o uso da Plataforma Appmax (CNPJ nº 27.000.511/0001-60) pelo menor, orientando-o sobre as diretrizes de segurança e bom uso do ambiente digital.');
+    html += p('b) Assumir integral responsabilidade por quaisquer ações realizadas pelo menor na plataforma, inclusive eventuais infrações aos Termos de Uso, inclusive por eventuais débitos que possam vir a surgir, em decorrência de chargebacks e estornos.');
+    html += p('c) Arcar com eventuais danos ou prejuízos decorrentes do uso da plataforma pelo menor, isentando a Appmax de qualquer responsabilidade nesses casos.');
+    html += `<br>${p('O representante legal declara que as informações fornecidas são verídicas e atualizadas, assumindo plena responsabilidade pela veracidade das mesmas.')}`;
+    html += `<br>${p(`Local e Data: ${gR('cid','r_cid')}/${gR('uf','r_uf')}, ${dataExtenso()}`)}`;
+    html += `<p class="sig">Assinatura do Representante Legal: ${gR('nome','r_nome')}<br><br>___________________________________________________</p>`;
+    baixarDoc(html, `TERMO_MENOR_${getNomePrincipal().replace(/[^A-Z0-9]/g,'_')}.doc`);
+    return;
+  }
+
+  if (tipo === 'SAQUE') {
+    const razao = g(pjEnt,'nome','pj_nome'), cnpj = g(pjEnt,'cnpj','pj_cnpj');
+    const rua = g(pjEnt,'rua','pj_rua'), num = g(pjEnt,'num','pj_num');
+    const compPJ = g(pjEnt,'comp','pj_comp'), bairro = g(pjEnt,'bairro','pj_bairro');
+    const cidade = g(pjEnt,'cid','pj_cid'), uf = g(pjEnt,'uf','pj_uf'), cep = g(pjEnt,'cep','pj_cep');
+    const repNome = g(repEnt,'nome','p1_nome'), repCpf = g(repEnt,'cpf','p1_cpf');
+    const compStr = compPJ && compPJ !== '-' ? ' - ' + compPJ : '';
+    const valor1 = sqV('sq_v1','sq_valor1'), ext1 = sqV('sq_e1','sq_extenso1');
+    const valor2 = sqV('sq_v2','sq_valor2'), ext2 = sqV('sq_e2','sq_extenso2');
+    const v2str = valor2 ? ` E ${valor2} (${ext2})` : '';
+
+    html += `<h1>TERMO DE AUTORIZAÇÃO E QUITAÇÃO</h1>`;
+    html += `<p>${b('AUTORIZANTE:')}</p>`;
+    html += p(`Razão Social: ${razao}`);
+    html += p(`CNPJ: ${cnpj}`);
+    html += p(`Endereço: ${rua}, ${num}${compStr}, ${bairro} - ${cidade}/${uf} - CEP ${cep}`);
+    html += p(`Representante legal: ${repNome}, portador do CPF n.º ${repCpf}`);
+    html += `<br><p>${b('Considerando que:')}</p>`;
+    html += p('- O Autorizante era credenciado na Plataforma APPMAX de propriedade da APPMAX PLATAFORMA DE PAGAMENTOS LTDA., CNPJ nº 27.000.511/0001-60, com sede na Travessa São José, nº 455, sala 74, Navegantes, Porto Alegre–RS, CEP 90240-200, para a intermediação de transações de pagamento;');
+    html += p('- O CNPJ do Autorizante encontra-se atualmente baixado perante a Receita Federal do Brasil, impossibilitando o recebimento de valores em sua conta bancária anteriormente vinculada;');
+    html += p('- Por obrigação regulatória, a APPMAX deve realizar os repasses financeiros exclusivamente para o domicílio bancário do beneficiário final das transações realizadas;');
+    html += p('- Em razão da inatividade da conta-corrente vinculada ao CNPJ, faz-se necessária uma alternativa segura para efetivar o pagamento dos valores devidos;');
+    html += `<br>${p(`O autorizante autoriza expressamente que a APPMAX realize o depósito para saque ${valor1} (${ext1})${v2str} referente às transações realizadas pela empresa anteriormente à sua baixa, na seguinte conta de titularidade do seu representante legal:`)}`;
+    html += p(`- CPF do titular da conta indicada (sócio principal) CPF: ${sqV('sq_cpfconta','sq_cpf_conta')}`);
+    html += p(`- Tipo de conta (corrente ou poupança): ${sqV('sq_tipoconta','sq_tipo_conta')}`);
+    html += p(`- Banco: ${sqV('sq_banco2','sq_banco')}`);
+    html += p(`- Agência: ${sqV('sq_agencia2','sq_agencia')}`);
+    html += p(`- Conta: ${sqV('sq_conta2','sq_conta')}`);
+    html += p(`- Chave PIX: ${sqV('sq_pix2','sq_pix')}`);
+    html += `<br>${p('O AUTORIZANTE declara estar ciente dos Termos de Uso da APPMAX (https://appmax.com.br/termos-de-uso) e que o seu representante legal é o mesmo do período em que as transações ocorreram e que os valores ora pagos são devidos à referida pessoa jurídica.')}`;
+    html += p('Ao receber os valores acima especificados, o AUTORIZANTE dá plena, geral e irrevogável quitação à APPMAX, nada mais tendo a reclamar, judicial ou extrajudicialmente, a esse título.');
+    html += p('O AUTORIZANTE isenta a APPMAX de qualquer responsabilidade por eventuais disputas societárias, fiscais, tributárias ou de qualquer natureza, relacionadas à destinação dos valores pagos neste termo.');
+    html += p('Este termo tem caráter excepcional e não gera obrigação futura da APPMAX em realizar depósitos fora das regras do arranjo de pagamento vigente, nem constitui novação contratual. E por estarem de pleno acordo, firmam o presente termo no formato digital.');
+    html += `<br>${p(`${cidade}/${uf}, ${dataExtenso()}`)}`;
+    baixarDoc(html, `TERMO_SAQUE_${getNomePrincipal().replace(/[^A-Z0-9]/g,'_')}.doc`);
+    return;
+  }
+
+  // PJ / PF
+  const titulo = isProc ? 'PROCURAÇÃO PARTICULAR' : 'TERMO DE RESPONSABILIDADE';
+  html += `<h1>${titulo}</h1>`;
+  html += `<p>${b(isProc ? 'OUTORGANTE:' : 'PARCEIRO:')}</p>`;
+
+  if (isPF) {
+    html += p(`Nome: ${v('p1_nome')}`);
+    html += p(`Nacionalidade: ${v('p1_nac')}`);
+    html += p(`CPF: ${v('p1_cpf')}`);
+    html += p(`Endereço: ${v('p1_rua')}, ${v('p1_num')}${v('p1_comp')?` / ${v('p1_comp')}`:''}, ${v('p1_bairro')} - ${v('p1_cid')}/${v('p1_uf')} - CEP ${v('p1_cep')}`);
+  } else {
+    html += p(`Razão Social: ${v('pj_nome')}`);
+    html += p(`CNPJ: ${v('pj_cnpj')}`);
+    html += p(`Endereço: ${v('pj_rua')}, ${v('pj_num')}${v('pj_comp')?` / ${v('pj_comp')}`:''}, ${v('pj_bairro')} - ${v('pj_cid')}/${v('pj_uf')} - CEP ${v('pj_cep')}`);
+    const repParts1 = [];
+    if (v('p1_nome')) repParts1.push(`${v('p1_nome')}, portador do CPF nº ${v('p1_cpf')}`);
+    if (p2on && v('p2_nome')) repParts1.push(`${v('p2_nome')}, portador do CPF nº ${v('p2_cpf')}`);
+    if (p3on && v('p3_nome')) repParts1.push(`${v('p3_nome')}, portador do CPF nº ${v('p3_cpf')}`);
+    let rep = 'Representada neste ato por ' + repParts1.join(', ');
+    html += p(rep + '.');
+  }
+
+  html += `<br><p>${b(isProc ? 'OUTORGADO:' : 'TERCEIRO OPERADOR:')}</p>`;
+  const addSocioDoc = (pre) => {
+    if (!v(pre+'_nome')) return;
+    html += p(`Nome: ${v(pre+'_nome')}`);
+    html += p(`Nacionalidade: ${v(pre+'_nac')}`);
+    html += p(`CPF: ${v(pre+'_cpf')}`);
+    html += p(`Endereço: ${v(pre+'_rua')}, ${v(pre+'_num')}${v(pre+'_comp')?` / ${v(pre+'_comp')}`:''}, ${v(pre+'_bairro')} - ${v(pre+'_cid')}/${v(pre+'_uf')} - CEP ${v(pre+'_cep')}`);
+    html += '<br>';
+  };
+  addSocioDoc('s1');
+  if (s2on) addSocioDoc('s2');
+  if (s3on) addSocioDoc('s3');
+
+  if (isProc) {
+    html += `<p>${b('PODERES:')}</p>`;
+    html += p('Pelo presente instrumento particular de mandato, a OUTORGANTE, através de seu representante legal, nomeia e constitui como seu legítimo representante o OUTORGADO, conferindo-lhe poderes para: Acessar, gerir, administrar e realizar todos os negócios que sejam de interesse da Outorgante, relacionados à Plataforma Appmax (CNPJ nº 27.000.511/0001-60), incluindo a realização de saques; Representar a Outorgante em todos os atos em que seja necessária sua presença ou intervenção como negociante; Requerer e defender os direitos e interesses da Outorgante perante terceiros; Assumir responsabilidades perante terceiros, na forma do art. 1.022 do Código Civil; Praticar todos os atos indispensáveis ao desempenho deste mandato, utilizando os poderes necessários em Direito permitidos. O presente mandato é concedido por prazo indeterminado, podendo ser revogado a qualquer momento pela Outorgante mediante comunicação formal, com a devida ciência a terceiros interessados.');
+  } else {
+    html += p('Este Termo de Responsabilidade tem por objeto a utilização da plataforma Appmax (CNPJ nº 27.000.511/0001-60) pelo Terceiro Operador acima identificado, em nome do Parceiro, conforme as diretrizes estabelecidas nos Termos de Uso e Política de Privacidade da Appmax, disponíveis no site oficial https://appmax.com.br');
+    html += p('O Terceiro Operador declara que leu, compreendeu e concorda integralmente com os Termos de Uso e a Política de Privacidade da Appmax, comprometendo-se a respeitá-los durante toda a operação da plataforma.');
+    html += p('Em caso de desligamento ou substituição do Terceiro Operador, o Parceiro compromete-se a notificar a Appmax imediatamente, fornecendo as devidas revogações e/ou novas autorizações, além de proceder à alteração de login e senha para evitar acessos indevidos.');
+    html += p('Este Termo de Responsabilidade entra em vigor na data de sua assinatura e permanecerá válido enquanto o Parceiro tiver acesso autorizado à Plataforma Appmax, ou até que seja formalmente revogado pelo Parceiro.');
+  }
+
+  const loc = isPF ? `${v('p1_cid')}/${v('p1_uf')}` : `${v('pj_cid')}/${v('pj_uf')}`;
+  html += `<br>${p(`Local e Data: ${loc}, ${dataExtenso()}.`)}`;
+
+  const lblAs = isProc ? 'Assinatura do Outorgante:' : 'Assinatura do PARCEIRO:';
+  html += `<div class="sig">${p(`${lblAs} ${v('p1_nome')}<br><br>___________________________________________________`)}</div>`;
+  if (!isPF && p2on) html += `<div class="sig">${p(`${lblAs} ${v('p2_nome')}<br><br>___________________________________________________`)}</div>`;
+  if (!isPF && p3on) html += `<div class="sig">${p(`${lblAs} ${v('p3_nome')}<br><br>___________________________________________________`)}</div>`;
+
+  if (!isProc || isPF) {
+    const lblS = isProc ? 'Assinatura do OUTORGADO:' : 'Assinatura do TERCEIRO OPERADOR:';
+    html += `<div class="sig">${p(`${lblS} ${v('s1_nome')}<br><br>___________________________________________________`)}</div>`;
+    if (s2on) html += `<div class="sig">${p(`${lblS} ${v('s2_nome')}<br><br>___________________________________________________`)}</div>`;
+    if (s3on) html += `<div class="sig">${p(`${lblS} ${v('s3_nome')}<br><br>___________________________________________________`)}</div>`;
+  }
+
+  html += '</body></html>';
+  const nome = isPF ? v('p1_nome') : v('pj_nome');
+  const pref = isProc ? 'PROCURACAO' : 'TERMO';
+  baixarDoc(html, `${pref}_${getNomePrincipal().replace(/[^A-Z0-9]/g,'_')}.doc`);
+}
+
+function baixarDoc(html, filename) {
+  const fullHtml = html + '</body></html>';
+  const blob = new Blob(['﻿' + fullHtml], { type: 'application/msword;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+
+function getNomePrincipal() {
+  if (entidadesExtraidas && entidadesExtraidas.length > 0) {
+    // Prefer empresa name, then first person
+    const pj = entidadesExtraidas.find(e => e.id === 'pj' || e.tipo === 'empresa');
+    if (pj && pj.campos && pj.campos.nome) return pj.campos.nome.toUpperCase();
+    const first = entidadesExtraidas[0];
+    if (first && first.campos && first.campos.nome) return first.campos.nome.toUpperCase();
+  }
+  // Fallback to form fields
+  return v('pj_nome') || v('p1_nome') || v('r_nome') || 'DOCUMENTO';
+}
+function gerarPDF(tipo) {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF();
+  let y = 20;
+  const M = 20, W = 170, LH = 7;
+
+  function txt(text, bold = false, align = 'justify') {
+    if (!text) return;
+    if (y > 275) { doc.addPage(); y = 20; }
+    doc.setFont('helvetica', bold ? 'bold' : 'normal');
+    doc.setFontSize(11);
+    const lines = doc.splitTextToSize(text, W);
+    doc.text(lines, align === 'center' ? 105 : M, y, { align, maxWidth: W });
+    y += lines.length * LH + 2;
+  }
+
+  function assinatura(label, nome) {
+    if (!nome) return;
+    if (y > 260) { doc.addPage(); y = 20; }
+    doc.setFont('helvetica','normal');
+    doc.setFontSize(11);
+    doc.text('___________________________________________________', 105, y, { align: 'center' });
+    y += 6;
+    doc.text((label + ' ' + nome).trim(), 105, y, { align: 'center' });
+    y += 15;
+  }
+
+  const toggle_p2 = document.getElementById('toggle_p2');
+  const toggle_p3 = document.getElementById('toggle_p3');
+  const p2on = toggle_p2 ? toggle_p2.checked : !!v('p2_nome');
+  const p3on = toggle_p3 ? toggle_p3.checked : !!v('p3_nome');
+  const s2on = document.getElementById('toggle_s2')?.checked;
+  const s3on = document.getElementById('toggle_s3')?.checked;
+
+  // ---- MENOR ----
+  if (tipo === 'MENOR') {
+    // Usa campos dos cards se disponível, senão form
+    const rep = entidadesExtraidas ? entidadesExtraidas.find(e => e.id === 'rep') : null;
+    const men = entidadesExtraidas ? entidadesExtraidas.find(e => e.id === 'men') : null;
+
+    const get = (entId, key, formId) => {
+      const ent = entidadesExtraidas ? entidadesExtraidas.find(e => e.id === entId) : null;
+      if (ent && ent.campos[key]) return ent.campos[key].toString().toUpperCase();
+      return v(formId);
+    };
+
+    const rNome   = get('rep','nome','r_nome');
+    const rCpf    = get('rep','cpf','r_cpf');
+    const rRua    = get('rep','rua','r_rua');
+    const rNum    = get('rep','num','r_num');
+    const rComp   = get('rep','comp','r_comp');
+    const rBairro = get('rep','bairro','r_bairro');
+    const rCid    = get('rep','cid','r_cid');
+    const rUf     = get('rep','uf','r_uf');
+    const rCep    = get('rep','cep','r_cep');
+
+    const mNome   = get('men','nome','m_nome');
+    const mCpf    = get('men','cpf','m_cpf');
+    const mRua    = get('men','rua','m_rua');
+    const mNum    = get('men','num','m_num');
+    const mComp   = get('men','comp','m_comp');
+    const mBairro = get('men','bairro','m_bairro');
+    const mCid    = get('men','cid','m_cid');
+    const mUf     = get('men','uf','m_uf');
+    const mCep    = get('men','cep','m_cep');
+
+    const compR = rComp && rComp !== '-' ? ', ' + rComp : '';
+    const compM = mComp && mComp !== '-' ? ', ' + mComp : '';
+
+    doc.setFontSize(14); doc.setFont('helvetica','bold');
+    doc.text('TERMO DE AUTORIZAÇÃO E RESPONSABILIDADE', 105, y, {align:'center'}); y += 15;
+
+    txt('REPRESENTANTE LEGAL:', true, 'left');
+    txt(`Nome: ${rNome}`, false, 'left');
+    txt(`Documento de Identificação (CPF): ${rCpf}`, false, 'left');
+    txt(`Endereço: ${rRua}, ${rNum}${compR}, ${rBairro} - ${rCid}/${rUf} - ${rCep}`, false, 'left');
+    y += 4;
+
+    txt('MENOR AUTORIZADO:', true, 'left');
+    txt(`Nome: ${mNome}`, false, 'left');
+    txt(`Documento de Identificação (CPF): ${mCpf}`, false, 'left');
+    txt(`Endereço: ${mRua}, ${mNum}${compM}, ${mBairro} - ${mCid}/${mUf} - ${mCep}`, false, 'left');
+    y += 5;
+
+    txt('Este termo tem como objeto a autorização, desde o momento do credenciamento na Plataforma Appmax e por tempo indeterminado, pelo representante legal acima qualificado, para que o menor utilize a Plataforma, reconhecendo as diretrizes estabelecidas nos Termos de Uso e Política de Privacidade da Appmax, disponíveis no site oficial da Appmax https://appmax.com.br');
+    y += 3;
+    txt('O representante legal, ao assinar este termo, se compromete a:');
+    txt('a) Supervisionar o uso da Plataforma Appmax (CNPJ nº 27.000.511/0001-60) pelo menor, orientando-o sobre as diretrizes de segurança e bom uso do ambiente digital.');
+    txt('b) Assumir integral responsabilidade por quaisquer ações realizadas pelo menor na plataforma, inclusive eventuais infrações aos Termos de Uso, inclusive por eventuais débitos que possam vir a surgir, em decorrência de chargebacks e estornos.');
+    txt('c) Arcar com eventuais danos ou prejuízos decorrentes do uso da plataforma pelo menor, isentando a Appmax de qualquer responsabilidade nesses casos.');
+    y += 3;
+    txt('O representante legal declara que as informações fornecidas são verídicas e atualizadas, assumindo plena responsabilidade pela veracidade das mesmas.');
+    y += 5;
+    txt(`Local e Data: ${rCid}/${rUf}, ${dataExtenso()}`, false, 'left');
+    y += 15;
+    assinatura('Assinatura do Representante Legal:', rNome);
+    doc.save(`TERMO_MENOR_${getNomePrincipal().replace(/[^A-Z0-9]/g,'_')}.pdf`);
+    return;
+  }
+
+  // ---- SAQUE ----
+  if (tipo === 'SAQUE') {
+    // Pega dados da empresa/rep dos cards se disponível
+    const pjEnt  = entidadesExtraidas ? entidadesExtraidas.find(e => e.id === 'pj')  : null;
+    const repEnt = entidadesExtraidas ? entidadesExtraidas.find(e => e.id === 'rep') : null;
+    const g = (ent, key, fallbackId) => {
+      // try card field first, then ent.campos, then form field
+      const cardEl = ent ? document.getElementById('field_' + ent.id + '_' + key) : null;
+      if (cardEl && cardEl.value) return cardEl.value.toUpperCase();
+      if (ent && ent.campos[key]) return ent.campos[key].toString().toUpperCase();
+      return v(fallbackId);
+    };
+
+    const razao    = g(pjEnt,  'nome',   'pj_nome');
+    const cnpj     = g(pjEnt,  'cnpj',   'pj_cnpj');
+    const rua      = g(pjEnt,  'rua',    'pj_rua');
+    const num      = g(pjEnt,  'num',    'pj_num');
+    const compPJ   = g(pjEnt,  'comp',   'pj_comp');
+    const bairro   = g(pjEnt,  'bairro', 'pj_bairro');
+    const cidade   = g(pjEnt,  'cid',    'pj_cid');
+    const uf       = g(pjEnt,  'uf',     'pj_uf');
+    const cep      = g(pjEnt,  'cep',    'pj_cep');
+    const repNome  = g(repEnt, 'nome',   'p1_nome');
+    const repCpf   = g(repEnt, 'cpf',    'p1_cpf');
+
+    const compStr  = compPJ && compPJ !== '-' ? ' - ' + compPJ : '';
+    const valor1   = sqV('sq_v1','sq_valor1');
+    const extenso1 = sqV('sq_e1','sq_extenso1');
+    const valor2   = sqV('sq_v2','sq_valor2');
+    const extenso2 = sqV('sq_e2','sq_extenso2');
+    const v2str    = valor2 ? ` E ${valor2} (${extenso2})` : '';
+
+    doc.setFontSize(14); doc.setFont('helvetica','bold');
+    doc.text('TERMO DE AUTORIZAÇÃO E QUITAÇÃO', 105, y, {align:'center'}); y += 15;
+
+    txt('AUTORIZANTE:', true, 'left');
+    txt(`Razão Social: ${razao}`, false, 'left');
+    txt(`CNPJ: ${cnpj}`, false, 'left');
+    txt(`Endereço: ${rua}, ${num}${compStr}, ${bairro} - ${cidade}/${uf} - CEP ${cep}`, false, 'left');
+    txt(`Representante legal: ${repNome}, portador do CPF n.º ${repCpf}`, false, 'left');
+    y += 5;
+
+    txt('Considerando que:', true, 'left');
+    txt('- O Autorizante era credenciado na Plataforma APPMAX de propriedade da APPMAX PLATAFORMA DE PAGAMENTOS LTDA., CNPJ nº 27.000.511/0001-60, com sede na Travessa São José, nº 455, sala 74, Navegantes, Porto Alegre–RS, CEP 90240-200, para a intermediação de transações de pagamento;');
+    txt('- O CNPJ do Autorizante encontra-se atualmente baixado perante a Receita Federal do Brasil, impossibilitando o recebimento de valores em sua conta bancária anteriormente vinculada;');
+    txt('- Por obrigação regulatória, a APPMAX deve realizar os repasses financeiros exclusivamente para o domicílio bancário do beneficiário final das transações realizadas;');
+    txt('- Em razão da inatividade da conta-corrente vinculada ao CNPJ, faz-se necessária uma alternativa segura para efetivar o pagamento dos valores devidos;');
+    y += 4;
+
+    txt(`O autorizante autoriza expressamente que a APPMAX realize o depósito para saque ${valor1} (${extenso1})${v2str} referente às transações realizadas pela empresa anteriormente à sua baixa, na seguinte conta de titularidade do seu representante legal:`);
+    y += 3;
+    txt(`- CPF do titular da conta indicada (sócio principal) CPF: ${sqV('sq_cpfconta','sq_cpf_conta')}`, false, 'left');
+    txt(`- Tipo de conta (corrente ou poupança): ${sqV('sq_tipoconta','sq_tipo_conta')}`, false, 'left');
+    txt(`- Banco: ${sqV('sq_banco2','sq_banco')}`, false, 'left');
+    txt(`- Agência: ${sqV('sq_agencia2','sq_agencia')}`, false, 'left');
+    txt(`- Conta: ${sqV('sq_conta2','sq_conta')}`, false, 'left');
+    txt(`- Chave PIX: ${sqV('sq_pix2','sq_pix')}`, false, 'left');
+    y += 4;
+
+    txt('O AUTORIZANTE declara estar ciente dos Termos de Uso da APPMAX (https://appmax.com.br/termos-de-uso) e que o seu representante legal é o mesmo do período em que as transações ocorreram e que os valores ora pagos são devidos à referida pessoa jurídica.');
+    txt('Ao receber os valores acima especificados, o AUTORIZANTE dá plena, geral e irrevogável quitação à APPMAX, nada mais tendo a reclamar, judicial ou extrajudicialmente, a esse título.');
+    txt('O AUTORIZANTE isenta a APPMAX de qualquer responsabilidade por eventuais disputas societárias, fiscais, tributárias ou de qualquer natureza, relacionadas à destinação dos valores pagos neste termo.');
+    txt('Este termo tem caráter excepcional e não gera obrigação futura da APPMAX em realizar depósitos fora das regras do arranjo de pagamento vigente, nem constitui novação contratual. E por estarem de pleno acordo, firmam o presente termo no formato digital.');
+    y += 5;
+    txt(`${cidade}/${uf}, ${dataExtenso()}`, false, 'left');
+    doc.save(`TERMO_SAQUE_${getNomePrincipal().replace(/[^A-Z0-9]/g,'_')}.pdf`);
+    return;
+  }
+
+  // ---- REVOGAÇÃO PF ----
+  if (tipo === 'REVOG_PF') {
+    doc.setFontSize(14); doc.setFont('helvetica','bold');
+    doc.text('TERMO DE REVOGAÇÃO E CANCELAMENTO DE PROCURAÇÃO PARTICULAR', 105, y, {align:'center'}); y += 15;
+    txt('OUTORGANTE:', true, 'left');
+    txt(`Nome: ${v('p1_nome')}\nNacionalidade: ${v('p1_nac')||'BRASILEIRO(A)'}\nCPF: ${v('p1_cpf')}\nEndereço: ${v('p1_rua')}, ${v('p1_num')}${comp('p1_comp')}, ${v('p1_bairro')} - ${v('p1_cid')}/${v('p1_uf')} - CEP ${v('p1_cep')}`, false, 'left'); y += 5;
+    txt('OUTORGADO:', true, 'left');
+    txt(`Nome: ${v('s1_nome')}\nNacionalidade: ${v('s1_nac')||'BRASILEIRO(A)'}\nCPF: ${v('s1_cpf')}\nEndereço: ${v('s1_rua')}, ${v('s1_num')}${comp('s1_comp')}, ${v('s1_bairro')} - ${v('s1_cid')}/${v('s1_uf')} - CEP ${v('s1_cep')}`, false, 'left'); y += 5;
+    txt(`Pelo presente instrumento, a OUTORGANTE, nos termos do art. 682 do Código Civil, vem formalmente revogar a procuração outorgada ao OUTORGADO, anteriormente conferida através do instrumento particular de mandato datado de ${getDataOriginal()}.`);
+    txt('Dessa forma, ficam desde já cancelados todos os poderes anteriormente conferidos ao OUTORGADO, declarando-se extinta a relação de mandato a partir da presente data, não podendo o OUTORGADO praticar quaisquer atos em nome da OUTORGANTE.'); y += 5;
+    txt(`Local e Data: ${v('p1_cid')}/${v('p1_uf')}, ${dataExtenso()}.`, false, 'left'); y += 15;
+    assinatura('Assinatura do OUTORGANTE:', v('p1_nome'));
+    doc.save(`REVOGACAO_PF_${getNomePrincipal().replace(/[^A-Z0-9]/g,'_')}.pdf`);
+    return;
+  }
+
+  // ---- REVOGAÇÃO PJ ----
+  if (tipo === 'REVOG_PJ') {
+    const p2on = document.getElementById('toggle_p2')?.checked;
+    const p3on = document.getElementById('toggle_p3')?.checked;
+    const s2on = document.getElementById('toggle_s2')?.checked;
+    const s3on = document.getElementById('toggle_s3')?.checked;
+    doc.setFontSize(14); doc.setFont('helvetica','bold');
+    doc.text('TERMO DE REVOGAÇÃO E CANCELAMENTO DE PROCURAÇÃO PARTICULAR', 105, y, {align:'center'}); y += 15;
+    txt('OUTORGANTE:', true, 'left');
+    txt(`Razão Social: ${v('pj_nome')}\nCNPJ: ${v('pj_cnpj')}\nEndereço: ${v('pj_rua')}, ${v('pj_num')}${comp('pj_comp')}, ${v('pj_bairro')} - ${v('pj_cid')}/${v('pj_uf')} - CEP ${v('pj_cep')}`, false, 'left'); y += 3;
+    const repParts2 = [];
+    if (v('p1_nome')) repParts2.push(`${v('p1_nome')}, portador do CPF nº ${v('p1_cpf')}`);
+    if (p2on && v('p2_nome')) repParts2.push(`${v('p2_nome')}, portador do CPF nº ${v('p2_cpf')}`);
+    if (p3on && v('p3_nome')) repParts2.push(`${v('p3_nome')}, portador do CPF nº ${v('p3_cpf')}`);
+    let rep = 'Representada neste ato por seu representante legal, ' + repParts2.join(', ');
+    txt(rep + '.'); y += 5;
+    txt('OUTORGADO:', true, 'left');
+    const addOut = (pre) => {
+      if (!v(pre+'_nome')) return;
+      txt(`Nome: ${v(pre+'_nome')}\nNacionalidade: ${v(pre+'_nac')||'BRASILEIRO(A)'}\nCPF: ${v(pre+'_cpf')}\nEndereço: ${v(pre+'_rua')}, ${v(pre+'_num')}${comp(pre+'_comp')}, ${v(pre+'_bairro')} - ${v(pre+'_cid')}/${v(pre+'_uf')} - CEP ${v(pre+'_cep')}`, false, 'left');
+    };
+    addOut('s1'); if (s2on) addOut('s2'); if (s3on) addOut('s3'); y += 5;
+    txt(`Pelo presente instrumento, a OUTORGANTE, nos termos do art. 682 do Código Civil, vem formalmente revogar a procuração outorgada ao OUTORGADO, anteriormente conferida através do instrumento particular de mandato datado de ${getDataOriginal()}.`);
+    txt('Dessa forma, ficam desde já cancelados todos os poderes anteriormente conferidos ao OUTORGADO, declarando-se extinta a relação de mandato a partir da presente data, não podendo o OUTORGADO praticar quaisquer atos em nome da OUTORGANTE.'); y += 5;
+    txt(`Local e Data: ${v('pj_cid')}/${v('pj_uf')}, ${dataExtenso()}.`, false, 'left'); y += 15;
+    assinatura('Assinatura do Outorgante:', v('p1_nome'));
+    if (p2on) assinatura('Assinatura do Outorgante:', v('p2_nome'));
+    if (p3on) assinatura('Assinatura do Outorgante:', v('p3_nome'));
+    doc.save(`REVOGACAO_PJ_${getNomePrincipal().replace(/[^A-Z0-9]/g,'_')}.pdf`);
+    return;
+  }
+
+  // ---- PROC / TERMO PJ / PF ----
+  const isPF = tipo.includes('PF');
+  const isProc = tipo.includes('PROC');
+
+  doc.setFontSize(14); doc.setFont('helvetica','bold');
+  doc.text(isProc ? 'PROCURAÇÃO PARTICULAR' : 'TERMO DE RESPONSABILIDADE', 105, y, {align:'center'}); y += 15;
+
+  txt(isProc ? 'OUTORGANTE:' : 'PARCEIRO:', true, 'left');
+  if (isPF) {
+    txt(`Nome: ${v('p1_nome')}\nNacionalidade: ${v('p1_nac')}\nCPF: ${v('p1_cpf')}\nEndereço: ${v('p1_rua')}, ${v('p1_num')}${comp('p1_comp')}, ${v('p1_bairro')} - ${v('p1_cid')}/${v('p1_uf')} - CEP ${v('p1_cep')}`, false, 'left');
+  } else {
+    txt(`Razão Social: ${v('pj_nome')}\nCNPJ: ${v('pj_cnpj')}\nEndereço: ${v('pj_rua')}, ${v('pj_num')}${comp('pj_comp')}, ${v('pj_bairro')} - ${v('pj_cid')}/${v('pj_uf')} - CEP ${v('pj_cep')}`, false, 'left'); y += 3;
+    const repParts3 = [];
+    if (v('p1_nome')) repParts3.push(`${v('p1_nome')}, portador do CPF nº ${v('p1_cpf')}, residente e domiciliado à ${v('p1_rua')}, ${v('p1_num')}${comp('p1_comp')}, ${v('p1_bairro')} - ${v('p1_cid')}/${v('p1_uf')} - CEP ${v('p1_cep')}`);
+    if (p2on && v('p2_nome')) repParts3.push(`${v('p2_nome')}, portador do CPF nº ${v('p2_cpf')}, residente e domiciliado à ${v('p2_rua')}, ${v('p2_num')}${comp('p2_comp')}, ${v('p2_bairro')} - ${v('p2_cid')}/${v('p2_uf')} - CEP ${v('p2_cep')}`);
+    if (p3on && v('p3_nome')) repParts3.push(`${v('p3_nome')}, portador do CPF nº ${v('p3_cpf')}, residente e domiciliado à ${v('p3_rua')}, ${v('p3_num')}${comp('p3_comp')}, ${v('p3_bairro')} - ${v('p3_cid')}/${v('p3_uf')} - CEP ${v('p3_cep')}`);
+    let rep = 'Representada neste ato por seu representante legal, ' + repParts3.join(', ');
+    rep += '.';
+    txt(rep);
+  }
+  y += 5;
+
+  txt(isProc ? 'OUTORGADO:' : 'TERCEIRO OPERADOR:', true, 'left');
+
+  function socio(pre) {
+    if (!v(pre+'_nome')) return;
+    txt(`Nome: ${v(pre+'_nome')}\nNacionalidade: ${v(pre+'_nac')}\nCPF: ${v(pre+'_cpf')}\nEndereço: ${v(pre+'_rua')}, ${v(pre+'_num')}${comp(pre+'_comp')}, ${v(pre+'_bairro')} - ${v(pre+'_cid')}/${v(pre+'_uf')} - CEP ${v(pre+'_cep')}`, false, 'left');
+  }
+  socio('s1');
+  if (s2on) socio('s2');
+  if (s3on) socio('s3');
+  y += 5;
+
+  if (isProc) {
+    txt('PODERES:', true, 'left');
+    txt('Pelo presente instrumento particular de mandato, a OUTORGANTE, através de seu representante legal, nomeia e constitui como seu legítimo representante o OUTORGADO, conferindo-lhe poderes para: Acessar, gerir, administrar e realizar todos os negócios que sejam de interesse da Outorgante, relacionados à Plataforma Appmax (CNPJ nº 27.000.511/0001-60), incluindo a realização de saques; Representar a Outorgante em todos os atos em que seja necessária sua presença ou intervenção como negociante; Requerer e defender os direitos e interesses da Outorgante perante terceiros; Assumir responsabilidades perante terceiros, na forma do art. 1.022 do Código Civil; Praticar todos os atos indispensáveis ao desempenho deste mandato, utilizando os poderes necessários em Direito permitidos. O presente mandato é concedido por prazo indeterminado, podendo ser revogado a qualquer momento pela Outorgante mediante comunicação formal, com a devida ciência a terceiros interessados.');
+  } else {
+    txt('Este Termo de Responsabilidade tem por objeto a utilização da plataforma Appmax (CNPJ nº 27.000.511/0001-60) pelo Terceiro Operador acima identificado, em nome do Parceiro, conforme as diretrizes estabelecidas nos Termos de Uso e Política de Privacidade da Appmax, disponíveis no site oficial https://appmax.com.br');
+    y += 3;
+    txt('O Terceiro Operador declara que leu, compreendeu e concorda integralmente com os Termos de Uso e a Política de Privacidade da Appmax, comprometendo-se a respeitá-los durante toda a operação da plataforma.');
+    y += 3;
+    txt('Em caso de desligamento ou substituição do Terceiro Operador, o Parceiro compromete-se a notificar a Appmax imediatamente, fornecendo as devidas revogações e/ou novas autorizações, além de proceder à alteração de login e senha para evitar acessos indevidos.');
+    y += 3;
+    txt('Este Termo de Responsabilidade entra em vigor na data de sua assinatura e permanecerá válido enquanto o Parceiro tiver acesso autorizado à Plataforma Appmax, ou até que seja formalmente revogado pelo Parceiro.');
+  }
+  y += 5;
+
+  const loc = isPF ? `${v('p1_cid')}/${v('p1_uf')}` : `${v('pj_cid')}/${v('pj_uf')}`;
+  txt(`Local e Data: ${loc}, ${dataExtenso()}.`, false, 'left');
+  y += 15;
+
+  const lblOut = isProc ? 'Assinatura do Outorgante:' : 'Assinatura do PARCEIRO:';
+  assinatura(lblOut, v('p1_nome'));
+  if (!isPF && p2on) assinatura(lblOut, v('p2_nome'));
+  if (!isPF && p3on) assinatura(lblOut, v('p3_nome'));
+
+  if (!isProc || isPF) {
+    const lblS = isProc ? 'Assinatura do OUTORGADO:' : 'Assinatura do TERCEIRO OPERADOR:';
+    assinatura(lblS, v('s1_nome'));
+    if (s2on) assinatura(lblS, v('s2_nome'));
+    if (s3on) assinatura(lblS, v('s3_nome'));
+  }
+
+  const nome = isPF ? v('p1_nome') : v('pj_nome');
+  const prefixo = isProc ? 'PROCURACAO' : 'TERMO';
+  doc.save(`${prefixo}_${getNomePrincipal().replace(/[^A-Z0-9]/g,'_')}.pdf`);
+}
+</script>
+
+<script>
+// ============================================================
+// CALCULADORA DE TAXAS — funções com prefixo calc_ para evitar conflitos
+// ============================================================
+function calcFmt(v) { return v.toLocaleString('pt-BR',{style:'currency',currency:'BRL'}); }
+function calcParseBr(val) {
+  if (!val) return 0;
+  return parseFloat(val.toString().replace(/%/g,'').replace(/\s/g,'').replace(/\./g,'').replace(',','.')) || 0;
+}
+function calcMaskMoneySync(input) {
+  input.value = calcMaskMoney(input.value);
+}
+
+function calcMaskMoney(v) {
+  let n = v.replace(/\D/g,'');
+  n = (n/100).toFixed(2)+'';
+  n = n.replace('.',',').replace(/(\d)(?=(\d{3})+(?!\d))/g,'$1.');
+  return n;
+}
+function calcMaskPct(v) {
+  // If value already has comma or percent sign (from existing formatted value), keep as-is after cleaning
+  let raw = v.toString().replace(/%/g,'').replace(/\s/g,'').trim();
+  
+  // Already formatted like "5,00" or "5.00" — reformat
+  if (raw.includes(',') || (raw.includes('.') && raw.split('.')[1]?.length <= 2)) {
+    let n = raw.replace(',','.').replace(/[^0-9.]/g,'');
+    let f = parseFloat(n);
+    if (isNaN(f)) return '0,00 %';
+    return f.toFixed(2).replace('.',',') + ' %';
+  }
+  
+  // Pure digits typed by user — treat as "value * 100" only if 4+ digits, else treat as whole number
+  let digits = raw.replace(/\D/g,'');
+  if (!digits) return '0,00 %';
+  
+  // 1-3 digits = whole number (5 → 5,00%, 15 → 15,00%, 499 → 4,99%)
+  // 4+ digits = centesimal (1500 → 15,00%)
+  let num;
+  if (digits.length <= 3) {
+    num = parseInt(digits);
+  } else {
+    num = parseInt(digits) / 100;
+  }
+  return num.toFixed(2).replace('.',',') + ' %';
+}
+
+function calcUpdate() {
+  const g = (id) => document.getElementById(id);
+  const val = {};
+  ['c_tipoOrigemValor','c_modeloCalculo','c_repassarJuros','c_statusSaque'].forEach(f => {
+    if (g(f)) val[f.replace('c_','')] = g(f).value;
+  });
+  val.vendaBruta     = calcParseBr(g('c_vendaBruta')?.value);
+  val.numParcelas    = parseInt(g('c_numParcelas')?.value) || 1;
+  val.taxaParc       = calcParseBr(g('c_taxaParc')?.value);
+  val.limiteAbsorcao = parseInt(g('c_limiteAbsorcao')?.value) || 0;
+  val.taxaProc       = calcParseBr(g('c_taxaProc')?.value);
+  val.taxaGate       = calcParseBr(g('c_taxaGate')?.value);
+  val.taxaGar        = calcParseBr(g('c_taxaGar')?.value);
+  val.prazoGarantia  = parseInt(g('c_prazoGarantia')?.value) || 0;
+  val.taxaAnte       = calcParseBr(g('c_taxaAnte')?.value);
+  val.taxaSaque      = calcParseBr(g('c_taxaSaque')?.value);
+
+  if (!g('c_matrixPanel')) return;
+  g('c_matrixPanel').style.display     = val.modeloCalculo === 'custom' ? 'block' : 'none';
+  g('c_groupTaxaLinear').style.display = val.modeloCalculo === 'custom' ? 'none' : 'flex';
+  g('c_groupAbsorcao').style.display   = val.repassarJuros === 'parcial' ? 'flex' : 'none';
+  g('c_groupValorSaque').style.display = val.statusSaque === 'cobrar' ? 'flex' : 'none';
+
+  const saqueFinal = val.statusSaque === 'isento' ? 0 : val.taxaSaque;
+  let juros = 0;
+  if (val.modeloCalculo === 'custom') {
+    juros = calcParseBr(g('cm'+val.numParcelas)?.value);
+  } else if (val.modeloCalculo === 'auto_mensal') {
+    juros = val.numParcelas > 1 ? val.taxaParc * val.numParcelas : 0;
+  } else {
+    juros = val.numParcelas > 1 ? val.taxaParc : 0;
+  }
+
+  let checkout = 0, base = 0, dParc = 0;
+  if (val.tipoOrigemValor === 'checkout_com_juros') {
+    checkout = val.vendaBruta;
+    if (val.repassarJuros === 'sim') { base = checkout / (1 + juros/100); dParc = checkout - base; }
+    else { base = checkout; dParc = checkout * (juros/100); }
+  } else {
+    base = val.vendaBruta;
+    if (val.repassarJuros === 'sim') { dParc = base*(juros/100); checkout = base + dParc; }
+    else { dParc = base*(juros/100); checkout = base; }
+  }
+
+  const dProc = checkout * (val.taxaProc/100);
+  const liq   = checkout - dProc - val.taxaGate - dParc;
+  const dGar  = checkout * (val.taxaGar/100);
+  const saldo = liq - dGar;
+  const dAnte = saldo * (val.taxaAnte/100);
+  const res30 = saldo - saqueFinal;
+  const resAnt = saldo - dAnte - saqueFinal;
+
+  const s = (id, txt) => { if(g(id)) g(id).innerText = txt; };
+  s('c_lCheckout', calcFmt(checkout));
+  s('c_lParcelas', val.numParcelas);
+  s('c_lGarantiaTxt', calcFmt(dGar)+' ('+val.prazoGarantia+'d)');
+  s('c_lSaqueTxt', saqueFinal === 0 ? 'Isento' : calcFmt(saqueFinal));
+  s('c_vBruto30', calcFmt(checkout)); s('c_vBrutoAnt', calcFmt(checkout));
+  s('c_vProc30', '- '+calcFmt(dProc)); s('c_vProcAnt', '- '+calcFmt(dProc));
+  s('c_vGate30', '- '+calcFmt(val.taxaGate)); s('c_vGateAnt', '- '+calcFmt(val.taxaGate));
+  s('c_vParc30', '- '+calcFmt(dParc)); s('c_vParcAnt', '- '+calcFmt(dParc));
+  s('c_vLiq30', calcFmt(liq)); s('c_vLiqAnt', calcFmt(liq));
+  s('c_vGar30', '- '+calcFmt(dGar)); s('c_vGarAnt', '- '+calcFmt(dGar));
+  s('c_vAnte30', calcFmt(0)); s('c_vAnteAnt', '- '+calcFmt(dAnte));
+  s('c_vSaque30', '- '+calcFmt(saqueFinal)); s('c_vSaqueAnt', '- '+calcFmt(saqueFinal));
+  s('c_vFinal30', calcFmt(res30 + dGar));  // Total Líquido Real = antecipável + não antecipável
+  s('c_vFinalAnt', calcFmt(resAnt));         // Disponível para antecipação
+  s('c_vGarFinal', calcFmt(dGar));           // Não antecipável
+
+  // Prazo label + data de liberação
+  const prazoEl = document.getElementById('c_prazoLabel');
+  if (prazoEl) prazoEl.textContent = val.prazoGarantia;
+  const dataLibEl = document.getElementById('c_dataLib');
+  if (dataLibEl) {
+    const hoje = new Date();
+    hoje.setDate(hoje.getDate() + val.prazoGarantia);
+    dataLibEl.textContent = hoje.toLocaleDateString('pt-BR');
+  }
+
+  if (g('c_chatTextarea')) {
+    g('c_chatTextarea').value =
+`Olá! Fiz o fechamento dos cálculos com base nos termos comerciais do seu plano:
+
+• Total Líquido na Tela: ${calcFmt(liq)}
+• Garantia retida (${val.taxaGar}%): - ${calcFmt(dGar)} (liberado em ${val.prazoGarantia} dias)
+• Saldo pós-garantia: ${calcFmt(saldo)}
+
+Opções de recebimento:
+
+1) ⏱️ Prazo normal (30 dias): ${calcFmt(res30)}
+2) ⚡ Antecipado agora: ${calcFmt(resAnt)}
+
+*A diferença para receber na hora fica em apenas ${calcFmt(res30 - resAnt)}.*`;
+  }
+}
+
+function calcGerarPDF() {
+  const el = document.getElementById('c-pdf-report');
+  if (!el) return;
+  const opt = { margin:10, filename:'relatorio-appmax.pdf', image:{type:'jpeg',quality:.98}, html2canvas:{scale:2}, jsPDF:{unit:'mm',format:'a4',orientation:'landscape'} };
+  html2pdf().set(opt).from(el).save();
+}
+
+function calcCopiarChat() {
+  const txt = document.getElementById('c_chatTextarea')?.value || '';
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(txt).then(() => alert('Copiado!'));
+  } else {
+    const ta = document.createElement('textarea');
+    ta.value = txt; document.body.appendChild(ta); ta.select();
+    document.execCommand('copy'); document.body.removeChild(ta);
+    alert('Copiado!');
+  }
+}
+
+// Attach events when calc screen is visible
+function calcInit() {
+  const g = (id) => document.getElementById(id);
+  if (!g('c_vendaBruta') || g('c_vendaBruta').dataset.calcInited) return;
+  g('c_vendaBruta').dataset.calcInited = '1';
+
+  const pctIds = ['c_taxaParc','c_taxaProc','c_taxaGar','c_taxaAnte'];
+  const moneyIds = ['c_vendaBruta','c_taxaGate','c_taxaSaque'];
+
+  moneyIds.forEach(id => {
+    const el = g(id);
+    if (el) { el.addEventListener('input', function(){ this.value = calcMaskMoney(this.value); calcUpdate(); }); }
+  });
+  pctIds.forEach(id => {
+    const el = g(id);
+    if (el) { el.addEventListener('input', function(){ this.value = calcMaskPct(this.value); calcUpdate(); }); }
+  });
+  for(let i=1;i<=12;i++) {
+    const el = g('cm'+i);
+    if (el) el.addEventListener('input', function(){ this.value = calcMaskPct(this.value); calcUpdate(); });
+  }
+  ['c_tipoOrigemValor','c_numParcelas','c_modeloCalculo','c_repassarJuros','c_statusSaque'].forEach(id => {
+    const el = g(id);
+    if (el) el.addEventListener('change', calcUpdate);
+  });
+  g('c_limiteAbsorcao')?.addEventListener('input', calcUpdate);
+  g('c_prazoGarantia')?.addEventListener('input', calcUpdate);
+
+  // Init masks
+  if (g('c_vendaBruta') && g('c_vendaBruta').value) g('c_vendaBruta').value = calcMaskMoney(g('c_vendaBruta').value);
+  if (g('c_taxaSaque') && g('c_taxaSaque').value) g('c_taxaSaque').value = calcMaskMoney(g('c_taxaSaque').value);
+  pctIds.forEach(id => { if(g(id) && g(id).value) g(id).value = calcMaskPct(g(id).value); });
+
+  calcUpdate();
+}
+
+
+
+// ============================================================
+// MODO PIX / CARTÃO
+// ============================================================
+let calcModoAtual = 'card';
+
+function calcSetMode(modo) {
+  calcModoAtual = modo;
+  const isPix = modo === 'pix';
+
+  // Toggle buttons
+  const btnCard = document.getElementById('c_modeCard');
+  const btnPix  = document.getElementById('c_modePix');
+  if (btnCard) { btnCard.classList.toggle('active', !isPix); }
+  if (btnPix)  { btnPix.classList.toggle('active',  isPix); }
+
+  // Card 1: swap entre versão Cartão e PIX
+  const card1Card = document.getElementById('c_card1Card');
+  const card1Pix  = document.getElementById('c_card1Pix');
+  if (card1Card) card1Card.style.display = isPix ? 'none' : 'block';
+  if (card1Pix)  card1Pix.style.display  = isPix ? 'block' : 'none';
+
+  // Card 2 parcelamento
+  const blockParc = document.getElementById('c_blockParc');
+  if (blockParc) blockParc.style.display = isPix ? 'none' : 'block';
+
+  // Card tabela de parcelamento (azul)
+  const tabelaParc = document.getElementById('c_tabelaParc');
+  if (tabelaParc) {
+    const tCard = tabelaParc.closest('.c-block');
+    if (tCard) tCard.style.display = isPix ? 'none' : 'block';
+  }
+
+  // Campo antecipação dentro do card 4
+  const groupAnte = document.getElementById('c_groupAnte');
+  if (groupAnte) groupAnte.style.display = isPix ? 'none' : '';
+
+  // Coluna antecipado no relatório
+  const thAnt = document.getElementById('c_thAnt');
+  if (thAnt) thAnt.style.display = isPix ? 'none' : '';
+  ['c_vBrutoAnt','c_vProcAnt','c_vGateAnt','c_vParcAnt','c_vLiqAnt','c_vGarAnt','c_vAnteAnt','c_vSaqueAnt','c_vFinalAnt'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el && el.closest('td')) el.closest('td').style.display = isPix ? 'none' : '';
+  });
+
+  // Label do primeiro card de resumo
+  const lblAnt = document.getElementById('c_lblAnt');
+  if (lblAnt) lblAnt.textContent = isPix ? 'DISPONÍVEL PARA SAQUE' : 'DISPONÍVEL PARA ANTECIPAÇÃO';
+
+  if (isPix) {
+    const numParc = document.getElementById('c_numParcelas');
+    if (numParc) numParc.value = '1';
+    const proc = document.getElementById('c_taxaProc');
+    if (proc) proc.value = '1,00 %';
+    const gate = document.getElementById('c_taxaGate');
+    if (gate) gate.value = calcMaskMoney('99');
+    const gar = document.getElementById('c_taxaGar');
+    if (gar) gar.value = '0,00 %';
+    const repassar = document.getElementById('c_repassarJuros');
+    if (repassar) repassar.value = 'nao';
+    const modeloSel = document.getElementById('c_modeloCalculo');
+    if (modeloSel) modeloSel.value = 'auto_mensal';
+    const taxaParc = document.getElementById('c_taxaParc');
+    if (taxaParc) taxaParc.value = '0,00 %';
+  } else {
+    const proc = document.getElementById('c_taxaProc');
+    if (proc) proc.value = '4,99 %';
+    const gate = document.getElementById('c_taxaGate');
+    if (gate) gate.value = calcMaskMoney('99');
+    const gar = document.getElementById('c_taxaGar');
+    if (gar) gar.value = '7,50 %';
+  }
+
+  calcUpdate();
+}
+
+// ============================================================
+// PLANOS PRÉ-CONFIGURADOS
+// ============================================================
+const CALC_PLANOS = {
+  padrao30: {
+    taxaProc: '499',   // 4,99%
+    taxaGate: '99',    // R$ 0,99
+    taxaGar:  '1500',  // 15,00%
+    taxaAnte: '149',   // 1,49%
+    prazoGarantia: 30,
+    statusSaque: 'cobrar',
+    taxaSaque: '367',  // R$ 3,67
+  },
+  padrao_ant: {
+    taxaProc: '599',   // 5,99%
+    taxaGate: '99',
+    taxaGar:  '1500',
+    taxaAnte: '149',
+    prazoGarantia: 1,
+    statusSaque: 'cobrar',
+    taxaSaque: '367',
+  }
+};
+
+const CALC_TABELAS = {
+  simples_249: { x1:'0',x2:'498',x3:'747',x4:'996',x5:'1245',x6:'1494',x7:'1743',x8:'1992',x9:'2241',x10:'2490',x11:'2739',x12:'2988' },
+  simples_219: { x1:'0',x2:'438',x3:'657',x4:'876',x5:'1095',x6:'1314',x7:'1533',x8:'1752',x9:'1971',x10:'2190',x11:'2409',x12:'2628' },
+  composta_299: { x1:'0',x2:'451',x3:'604',x4:'759',x5:'915',x6:'1072',x7:'1231',x8:'1392',x9:'1554',x10:'1717',x11:'1882',x12:'2048' }
+};
+
+function calcAplicarPlano(chave) {
+  if (!chave) return;
+  const p = CALC_PLANOS[chave];
+  if (!p) return;
+
+  const g = (id) => document.getElementById(id);
+  if (p.taxaProc)       { const el = g('c_taxaProc'); if(el) el.value = calcMaskPct(p.taxaProc); }
+  if (p.taxaGate)       { const el = g('c_taxaGate'); if(el) el.value = calcMaskMoney(p.taxaGate); }
+  if (p.taxaGar)        { const el = g('c_taxaGar');  if(el) el.value = calcMaskPct(p.taxaGar); }
+  if (p.taxaAnte)       { const el = g('c_taxaAnte'); if(el) el.value = calcMaskPct(p.taxaAnte); }
+  if (p.prazoGarantia)  { const el = g('c_prazoGarantia'); if(el) el.value = p.prazoGarantia; }
+  if (p.statusSaque)    { const el = g('c_statusSaque'); if(el) el.value = p.statusSaque; }
+  if (p.taxaSaque)      { const el = g('c_taxaSaque'); if(el) el.value = calcMaskMoney(p.taxaSaque); }
+
+  calcUpdate();
+}
+
+function calcAplicarTabela(chave) {
+  // Zero out if empty selected
+  if (!chave) {
+    for (let i = 1; i <= 12; i++) {
+      const el = document.getElementById('cm'+i);
+      if (el) el.value = '0,00 %';
+    }
+    const modeloSel = document.getElementById('c_modeloCalculo');
+    if (modeloSel) modeloSel.value = 'auto_mensal';
+    calcUpdate();
+    return;
+  }
+  const t = CALC_TABELAS[chave];
+  if (!t) return;
+
+  // Ativa modo custom
+  const modeloSel = document.getElementById('c_modeloCalculo');
+  if (modeloSel) modeloSel.value = 'custom';
+
+  for (let i = 1; i <= 12; i++) {
+    const val = t['x'+i];
+    const el = document.getElementById('cm'+i);
+    if (el && val !== undefined) el.value = calcMaskPct(val);
+  }
+
+  // Reset dropdown visual
+  const sel = document.getElementById('c_tabelaParc');
+  if (sel) {
+    const opt = sel.options[sel.selectedIndex];
+    if (opt) opt.text = '✅ ' + opt.text.replace('✅ ','');
+  }
+
+  calcUpdate();
+}
+
+// ============================================================
+// CALCULADORA — EXTRAÇÃO DE TAXAS VIA IMAGEM (GROQ VISION)
+// ============================================================
+let calcImgBase64 = null;
+let calcImgBase64Parc = null;
+let calcLastPasteSlot = 'geral'; // tracks which slot gets Ctrl+V
+
+function calcSetStatus(tipo, msg) {
+  const el = document.getElementById('c_extractStatus');
+  if (!el) return;
+  el.className = `c-extract-status ${tipo} visible`;
+  el.textContent = msg;
+}
+
+function calcHandleFile(file, slot) {
+  if (!file || !file.type.startsWith('image/')) return;
+  const isParc = slot === 'parc';
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const dataUrl = e.target.result;
+    if (isParc) {
+      calcImgBase64Parc = dataUrl;
+      const preview = document.getElementById('c_imgPreview2');
+      const label = document.getElementById('c_imgZoneLabel2');
+      if (preview) { preview.src = dataUrl; preview.style.display = 'block'; }
+      if (label) label.textContent = '✅ ' + (file.name || 'Imagem colada');
+    } else {
+      calcImgBase64 = dataUrl;
+      const preview = document.getElementById('c_imgPreview');
+      const label = document.getElementById('c_imgZoneLabel');
+      if (preview) { preview.src = dataUrl; preview.style.display = 'block'; }
+      if (label) label.textContent = '✅ ' + (file.name || 'Imagem colada');
+    }
+    const btn = document.getElementById('c_extractBtn');
+    if (btn && (calcImgBase64 || calcImgBase64Parc)) btn.disabled = false;
+  };
+  reader.readAsDataURL(file);
+}
+
+function calcHandleDrop(event, slot) {
+  event.preventDefault();
+  const zoneId = slot === 'parc' ? 'c_imgZone2' : 'c_imgZone';
+  document.getElementById(zoneId)?.classList.remove('drag-over');
+  const file = event.dataTransfer?.files[0];
+  if (file) calcHandleFile(file, slot);
+}
+
+// Ctrl+V — paste into whichever zone was last clicked/hovered
+document.addEventListener('paste', (e) => {
+  const screen = document.getElementById('tela-calc');
+  if (!screen || !screen.classList.contains('active')) return;
+  const items = e.clipboardData?.items;
+  if (!items) return;
+  for (const item of items) {
+    if (item.type.startsWith('image/')) {
+      calcHandleFile(item.getAsFile(), calcLastPasteSlot);
+      break;
+    }
+  }
+});
+
+// Track which zone was last interacted with for paste targeting
+['c_imgZone','c_imgZone2'].forEach(id => {
+  document.addEventListener('mouseover', (e) => {
+    if (e.target?.closest('#' + id)) {
+      calcLastPasteSlot = id === 'c_imgZone2' ? 'parc' : 'geral';
+    }
+  });
+});
+
+async function calcChamarWorkerImg(imgDataUrl, docType) {
+  const base64data = imgDataUrl.split(',')[1];
+  const mimeType = imgDataUrl.split(';')[0].split(':')[1];
+  const resp = await fetch('https://sparkling-grass-bb3d.bolhasdeluz.workers.dev', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ docType, imagem: { base64: base64data, mimeType } })
+  });
+  if (!resp.ok) throw new Error('Erro ' + resp.status);
+  const data = await resp.json();
+  if (!data.choices?.[0]) throw new Error(data.error?.message || 'Resposta inválida');
+  return JSON.parse(data.choices[0].message.content.replace(/```json|```/g,'').trim());
+}
+
+async function calcExtrairTaxas() {
+  if (!calcImgBase64 && !calcImgBase64Parc) return;
+  const btn = document.getElementById('c_extractBtn');
+  if (btn) btn.disabled = true;
+
+  let totalCampos = 0;
+
+  try {
+    // 1. Taxas gerais
+    if (calcImgBase64) {
+      calcSetStatus('info', '⏳ Analisando taxas gerais...');
+      const taxas = await calcChamarWorkerImg(calcImgBase64, 'CALC_TAXAS');
+
+      const set = (id, val) => {
+        const el = document.getElementById(id);
+        if (!el || val === undefined || val === null || val === '') return;
+        el.value = val; totalCampos++;
+      };
+
+      if (taxas.taxa_processamento) set('c_taxaProc', calcMaskPct(taxas.taxa_processamento.toString().replace(/[^0-9,]/g,'')));
+      if (taxas.gateway_fixo)       set('c_taxaGate', calcMaskMoney(taxas.gateway_fixo.toString().replace(/[^0-9,]/g,'')));
+      if (taxas.garantia)           set('c_taxaGar',  calcMaskPct(taxas.garantia.toString().replace(/[^0-9,]/g,'')));
+      if (taxas.antecipacao)        set('c_taxaAnte', calcMaskPct(taxas.antecipacao.toString().replace(/[^0-9,]/g,'')));
+      if (taxas.saque_valor)        set('c_taxaSaque', calcMaskMoney(taxas.saque_valor.toString().replace(/[^0-9,]/g,'')));
+      if (taxas.saque_isento === true || taxas.saque_isento === 'true') {
+        const sel = document.getElementById('c_statusSaque'); if (sel) sel.value = 'isento';
+      } else if (taxas.saque_valor) {
+        const sel = document.getElementById('c_statusSaque'); if (sel) sel.value = 'cobrar';
+      }
+    }
+
+    // 2. Taxas de parcelamento personalizadas
+    if (calcImgBase64Parc) {
+      calcSetStatus('info', '⏳ Analisando tabela de parcelamento...');
+      const parc = await calcChamarWorkerImg(calcImgBase64Parc, 'CALC_PARC');
+
+      // Ativa modo custom automaticamente
+      const modeloSel = document.getElementById('c_modeloCalculo');
+      if (modeloSel) modeloSel.value = 'custom';
+
+      for (let i = 1; i <= 12; i++) {
+        const key = `x${i}` ;
+        if (parc[key] !== undefined && parc[key] !== null && parc[key] !== '') {
+          const el = document.getElementById('cm' + i);
+          if (el) { el.value = calcMaskPct(parc[key].toString().replace(/[^0-9,]/g,'')); totalCampos++; }
+        }
+      }
+    }
+
+    calcUpdate();
+    calcSetStatus('success', `✅ ${totalCampos} valores identificados e preenchidos! Revise abaixo.`);
+
+  } catch(e) {
+    calcSetStatus('error', '❌ Erro: ' + e.message);
+    console.error(e);
+  } finally {
+    const btn = document.getElementById('c_extractBtn');
+    if (btn) btn.disabled = false;
+  }
+}
+</script>
+</body>
+</html>
