@@ -675,7 +675,13 @@ G.renderAll=()=>{renderManut();renderSuprimentos();renderFinancas();renderTambor
 // ── INIT ──
 document.getElementById('footer-date').textContent=new Date().toLocaleDateString('pt-BR',{day:'2-digit',month:'long',year:'numeric'});
 document.getElementById('fin-data').value=new Date().toISOString().split('T')[0];
-preencherMeses(); renderMensList(); renderFixasList(); initListeners();
+
+// Essas funções precisam ser chamadas nesta ordem exata
+preencherMeses(); 
+renderMensList(); 
+renderFixasList(); 
+initListeners();
+  
 </script>
 </body>
 </html>
