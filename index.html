@@ -1205,7 +1205,6 @@ function renderAll(){
 
 // ── INIT ──
 document.getElementById('footer-date').textContent=new Date().toLocaleDateString('pt-BR',{day:'2-digit',month:'long',year:'numeric'});
-document.getElementById('fin-ano').textContent=S.anoAtual;
 document.getElementById('fin-data').value=new Date().toISOString().split('T')[0];
 preencherMeses();
 initListeners();
