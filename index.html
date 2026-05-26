@@ -286,37 +286,46 @@ body{background:var(--bg);font-family:'DM Sans',sans-serif;color:var(--text);min
         <button id="tt-extra" class="tt" onclick="setTipo('extra')">↑ Extra</button>
         <button id="tt-saida" class="tt" onclick="setTipo('saida')">↓ Saída</button>
       </div>
-      <div id="fin-conta-row" class="fld" style="display:none">
-        <label class="flbl">Conta / Categoria</label>
-        <select id="fin-conta" class="sel" style="width:100%" onchange="onContaChange()">
-          <option value="">— selecione —</option>
-          <option value="Claro NXT (Internet)">Claro NXT (Internet)</option>
-          <option value="CEEE-D (Energia Elétrica)">CEEE-D (Energia Elétrica)</option>
-          <option value="LM Segurança">LM Segurança</option>
-          <option value="DMAE (Água/Esgoto)">DMAE (Água/Esgoto)</option>
-          <option value="Prefeitura Porto Alegre">Prefeitura Porto Alegre</option>
-          <option value="Sônica e Marco">Sônica e Marco</option>
-          <option value="Aluguel">Aluguel</option>
-          <option value="Alimentação">Alimentação</option>
-          <option value="Material ritual">Material ritual</option>
-          <option value="Outro">Outro (digitar)</option>
-        </select>
+      
+      <div id="fin-mens-row" style="display:block">
+        <div style="font-family:'Crimson Pro',serif;font-style:italic;font-size:13px;color:var(--text-dim);margin-bottom:10px">Preencha apenas o valor de quem pagou:</div>
+        <div id="fin-mens-list" style="max-height:240px;overflow-y:auto;padding-right:4px;margin-bottom:14px"></div>
       </div>
-      <div class="fld">
-        <label class="flbl" id="fin-desc-lbl">Descrição</label>
-        <input id="fin-desc" class="inp" placeholder="Ex: Doação, Manutenção…" onkeydown="if(event.key==='Enter')document.getElementById('fin-val').focus()"/>
-      </div>
-      <div class="erow">
-        <div class="fld" style="flex:1">
+
+      <div id="fin-single-row" style="display:none">
+        <div id="fin-conta-row" class="fld" style="display:none">
+          <label class="flbl">Conta / Categoria</label>
+          <select id="fin-conta" class="sel" style="width:100%" onchange="onContaChange()">
+            <option value="">— selecione —</option>
+            <option value="Claro NXT (Internet)">Claro NXT (Internet)</option>
+            <option value="CEEE-D (Energia Elétrica)">CEEE-D (Energia Elétrica)</option>
+            <option value="LM Segurança">LM Segurança</option>
+            <option value="DMAE (Água/Esgoto)">DMAE (Água/Esgoto)</option>
+            <option value="Prefeitura Porto Alegre">Prefeitura Porto Alegre</option>
+            <option value="Sônica e Marco">Sônica e Marco</option>
+            <option value="Aluguel">Aluguel</option>
+            <option value="Alimentação">Alimentação</option>
+            <option value="Material ritual">Material ritual</option>
+            <option value="Outro">Outro (digitar)</option>
+          </select>
+        </div>
+        <div class="fld">
+          <label class="flbl" id="fin-desc-lbl">Descrição</label>
+          <input id="fin-desc" class="inp" placeholder="Ex: Doação, Manutenção…" onkeydown="if(event.key==='Enter')document.getElementById('fin-val').focus()"/>
+        </div>
+        <div class="fld">
           <label class="flbl">Valor (R$)</label>
           <input id="fin-val" class="inp" type="number" placeholder="0,00" min="0" step="0.01" onkeydown="if(event.key==='Enter')lancar()"/>
         </div>
-        <div class="fld" style="flex:1">
-          <label class="flbl">Data</label>
+      </div>
+      
+      <div class="erow" style="align-items:flex-end">
+        <div class="fld" style="flex:1; margin-bottom:0">
+          <label class="flbl">Data do Lançamento</label>
           <input id="fin-data" class="inp" type="date" onkeydown="if(event.key==='Enter')lancar()"/>
         </div>
+        <button class="btn-p" id="btn-lancar" onclick="lancar()" style="height:35px">Lançar</button>
       </div>
-      <div style="text-align:right"><button class="btn-p" id="btn-lancar" onclick="lancar()">Lançar</button></div>
     </div>
     <div id="financas-content"><div class="load">Carregando…</div></div>
   </div>
@@ -504,7 +513,7 @@ body{background:var(--bg);font-family:'DM Sans',sans-serif;color:var(--text);min
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-app.js";
-import { getFirestore, collection, addDoc, onSnapshot, doc, updateDoc, deleteDoc, setDoc, getDocs, serverTimestamp, query, orderBy, where } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-firestore.js";
+import { getFirestore, collection, addDoc, onSnapshot, doc, updateDoc, deleteDoc, setDoc, serverTimestamp, query, orderBy, where } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-firestore.js";
 
 const FB = {
   apiKey:"AIzaSyDZ_vFMHZ7t7nyJWJPRfD280VZzagqY5Ws",
@@ -524,6 +533,8 @@ const S = {
   unsubMes:null, unsubAnual:null, anualCache:[],
   anoAtual:new Date().getFullYear(), supOkOpen:false, supCatFiltro:'todos'
 };
+
+const NOMES_MENS = ['Ness', 'Thali', 'Jaque', 'Tassi', 'Brenda', 'Anne', 'Vitória', 'Manu', 'Juliana', 'Gabi', 'Márcia', 'Nicole', 'Stephani'];
 
 // ── Utils ──
 function toast(msg,err=false){
@@ -714,7 +725,6 @@ G.toggleSupOk=function(){
   document.getElementById('sup-ok-arrow').textContent=S.supOkOpen?'▼':'▶';
   document.getElementById('sup-ok-lbl').textContent=`Em ordem (${S.estoque.filter(i=>supStatus(i)==='ok').length}) — ${S.supOkOpen?'recolher':'ver todos'}`;
 };
-
 G.setSupCat=function(c){S.supCatFiltro=c;renderSuprimentos();};
 
 function renderSuprimentos(){
@@ -960,6 +970,21 @@ G.delAvulso=async function(id){try{await deleteDoc(doc(db,'lista_compras',id));t
 
 // ── FINANÇAS ──
 let mesesComDados=new Set();
+
+// Renderiza a lista de nomes da mensalidade
+function renderMensList() {
+    const el = document.getElementById('fin-mens-list');
+    if(!el) return;
+    let html = '';
+    NOMES_MENS.forEach(n => {
+        html += `<div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border)">
+            <span style="font-family:'Playfair Display',serif;font-size:14px;font-weight:600">${n}</span>
+            <input id="mens-val-${n}" class="inp" type="number" placeholder="0,00" min="0" step="0.01" style="width:90px;padding:6px 8px;font-size:14px;text-align:right" onkeydown="if(event.key==='Enter')lancar()"/>
+        </div>`;
+    });
+    el.innerHTML = html;
+}
+
 function preencherMeses(){const sel=document.getElementById('sel-mes');const hoje=new Date();S.mesAtual=hoje.getFullYear()+'-'+String(hoje.getMonth()+1).padStart(2,'0');sel.innerHTML=`<option value="${S.mesAtual}">${nomeMes(S.mesAtual)}</option>`;}
 function atualizarSeletorMeses(){const sel=document.getElementById('sel-mes');const cur=sel.value||S.mesAtual;const meses=[...mesesComDados].sort().reverse();if(!meses.includes(cur))meses.unshift(cur);sel.innerHTML=meses.map(m=>`<option value="${m}" ${(m===cur?' selected':'')}>${nomeMes(m)}</option>`).join('');S.mesAtual=sel.value;}
 G.onMesChange=function(){
@@ -973,7 +998,13 @@ G.setTipo=function(t){
   document.getElementById('tt-mens').className='tt'+(t==='mensalidade'?' e':'');
   document.getElementById('tt-extra').className='tt'+(t==='extra'?' ex':'');
   document.getElementById('tt-saida').className='tt'+(t==='saida'?' s':'');
+  
   const isSaida=t==='saida';
+  const isMens=t==='mensalidade';
+  
+  document.getElementById('fin-mens-row').style.display=isMens?'block':'none';
+  document.getElementById('fin-single-row').style.display=isMens?'none':'block';
+  
   document.getElementById('fin-conta-row').style.display=isSaida?'block':'none';
   document.getElementById('fin-desc-lbl').textContent=isSaida?'Descrição / complemento':'Descrição';
   if(!isSaida){document.getElementById('fin-conta').value='';}
@@ -983,22 +1014,57 @@ G.onContaChange=function(){
   if(v&&v!=='Outro')document.getElementById('fin-desc').value=v;
   else if(v==='Outro')document.getElementById('fin-desc').value='';
 };
+
 G.lancar=async function(){
-  let desc=document.getElementById('fin-desc').value.trim();
-  const val=parseFloat(document.getElementById('fin-val').value);
   const data=document.getElementById('fin-data').value;
-  if(!val||val<=0){toast('Digite o valor',true);return;}
-  const t=S.finTipo;
-  const tipo=t==='saida'?'s':'e';
-  const subtipo=t==='saida'?'saida':t;
-  if(!desc){desc=t==='mensalidade'?'Mensalidade':t==='extra'?'Extra':'Saída';}
-  const btn=document.getElementById('btn-lancar');btn.disabled=true;
   const mesLanc=data?data.substring(0,7):S.mesAtual;
-  try{
-    await addDoc(collection(db,'transparencia'),{desc,val,data:data||S.mesAtual+'-01',tipo,subtipo,mes:mesLanc,criadoEm:serverTimestamp()});
-    document.getElementById('fin-desc').value='';document.getElementById('fin-val').value='';
-    toast(tipo==='e'?'Entrada lançada!':'Saída lançada!');
-  }catch(e){toast('Erro: '+e.code,true);console.error(e);}
+  const btn=document.getElementById('btn-lancar');
+  const t=S.finTipo;
+  btn.disabled=true;
+  
+  try {
+      if (t === 'mensalidade') {
+          const promises = [];
+          NOMES_MENS.forEach(n => {
+              const valInput = document.getElementById('mens-val-'+n);
+              if (valInput && valInput.value) {
+                  const val = parseFloat(valInput.value);
+                  if (val && val > 0) {
+                      promises.push(addDoc(collection(db,'transparencia'),{
+                          desc: n,
+                          val: val,
+                          data: data || new Date().toISOString().split('T')[0],
+                          tipo: 'e',
+                          subtipo: 'mensalidade',
+                          mes: mesLanc,
+                          criadoEm: serverTimestamp()
+                      }));
+                  }
+              }
+          });
+          if(promises.length === 0) { toast('Preencha ao menos um valor', true); btn.disabled=false; return; }
+          await Promise.all(promises);
+          NOMES_MENS.forEach(n => {
+              const valInput = document.getElementById('mens-val-'+n);
+              if (valInput) valInput.value = '';
+          });
+          toast('Mensalidades lançadas!');
+      } else {
+          let desc=document.getElementById('fin-desc').value.trim();
+          const val=parseFloat(document.getElementById('fin-val').value);
+          if(!val||val<=0){toast('Digite o valor',true); btn.disabled=false; return;}
+          
+          const tipo=t==='saida'?'s':'e';
+          const subtipo=t==='saida'?'saida':t;
+          if(!desc){desc=t==='extra'?'Extra':'Saída';}
+          
+          await addDoc(collection(db,'transparencia'),{desc,val,data:data||new Date().toISOString().split('T')[0],tipo,subtipo,mes:mesLanc,criadoEm:serverTimestamp()});
+          document.getElementById('fin-desc').value='';document.getElementById('fin-val').value='';
+          toast(tipo==='e'?'Entrada lançada!':'Saída lançada!');
+      }
+  } catch(e) {
+      toast('Erro ao lançar',true); console.error(e);
+  }
   btn.disabled=false;
 };
 
@@ -1016,6 +1082,7 @@ function renderFinancas(){
   document.getElementById('fin-ts').textContent=fmt(ts);
   
   const slEl=document.getElementById('fin-sl');
+  const slElLbl=document.getElementById('fin-sl-lbl');
   const maeBox=document.getElementById('mae-box');
   
   if(sl<0){
@@ -1032,10 +1099,34 @@ function renderFinancas(){
   let html='';
   if(entradas.length){
     html+=`<div class="section"><div class="sec-hd"><span class="sec-dot" style="background:var(--verde)"></span><span class="sec-lbl">Entradas</span><span class="sec-cnt">${entradas.length}</span></div>`;
+    
+    // Mensalidades Agrupadas
     if(mensalidades.length){
       const total=mensalidades.reduce((a,i)=>a+i.val,0);
-      html+=`<div class="ti" style="background:var(--verde-claro);border-color:#b8ddd4"><div><div style="font-size:14px;font-weight:600">Mensalidades</div><div style="font-size:11px;color:var(--text-dim);margin-top:2px">${mensalidades.length} lançamento${(mensalidades.length>1?'s':'')} somados</div></div><span class="ti-val e">+ ${fmt(total)}</span></div>`;
+      html+=`<div class="ti" style="background:var(--verde-claro);border-color:#b8ddd4;flex-direction:column;align-items:stretch;">
+        <div style="display:flex;justify-content:space-between;align-items:center;width:100%;">
+          <div><div style="font-size:14px;font-weight:600">Mensalidades</div><div style="font-size:11px;color:var(--text-dim);margin-top:2px">${mensalidades.length} lançamento${(mensalidades.length>1?'s':'')} somados</div></div>
+          <span class="ti-val e">+ ${fmt(total)}</span>
+        </div>`;
+      
+      // Detalhes p/ Admin
+      if (S.isAdmin) {
+          html += `<div style="margin-top:10px;padding-top:10px;border-top:1px dashed rgba(45,106,79,.2);display:flex;flex-direction:column;gap:6px;">`;
+          mensalidades.forEach(m => {
+              html += `<div style="display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--verde-txt);">
+                  <span style="font-weight:600">👤 ${m.desc} <span style="opacity:0.7;font-weight:400;font-size:10px;margin-left:6px">${fmtData(m.data)}</span></span>
+                  <div style="display:flex;align-items:center;gap:8px;">
+                      <span>${fmt(m.val)}</span>
+                      <button class="bic" style="padding:2px 6px;font-size:10px;background:rgba(184,64,64,.1);color:var(--red);" onclick="delTransac('${m.id}')">✕</button>
+                  </div>
+              </div>`;
+          });
+          html += `</div>`;
+      }
+      html+=`</div>`;
     }
+    
+    // Extras Individuais
     extras.forEach(item=>{
       html+=`<div class="ti"><div><div style="font-size:14px;font-weight:500">${item.desc}</div><div style="font-size:11px;color:var(--text-dim);margin-top:2px">${fmtData(item.data)} · Extra</div></div><div style="display:flex;align-items:center;gap:8px"><span class="ti-val e">+ ${fmt(item.val)}</span>${(S.isAdmin?`<button class="bic bic-d" onclick="delTransac('${item.id}')">✕</button>`:'')}</div></div>`;
     });
@@ -1204,6 +1295,7 @@ function renderAll(){
 }
 
 // ── INIT ──
+renderMensList();
 document.getElementById('footer-date').textContent=new Date().toLocaleDateString('pt-BR',{day:'2-digit',month:'long',year:'numeric'});
 document.getElementById('fin-data').value=new Date().toISOString().split('T')[0];
 preencherMeses();
