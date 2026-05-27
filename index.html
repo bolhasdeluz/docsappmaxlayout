@@ -7,8 +7,29 @@
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <!-- (SEU HTML ORIGINAL VAI AQUI DENTRO, DO HEADER ATÉ O FIM DOS MODAIS) -->
-    
+
+    <div class="header">
+        <h1>Bolhas de Luz</h1>
+        <p>Manutenção e Projetos</p>
+    </div>
+
+    <div class="tabs-wrap">
+        <button onclick="showTab('manut')">🔧 Manutenção</button>
+        <button onclick="showTab('supr')">📦 Suprimentos</button>
+        <button onclick="showTab('fin')">💰 Finanças</button>
+    </div>
+
+    <div id="manut-content" class="tab-pane"></div>
+    <div id="sup-precisamos" class="tab-pane" style="display:none"></div>
+    <div id="financas-content" class="tab-pane" style="display:none"></div>
+
     <script type="module" src="js/app.js"></script>
+    
+    <script>
+        function showTab(tab) {
+            document.querySelectorAll('.tab-pane').forEach(p => p.style.display = 'none');
+            document.getElementById(tab === 'manut' ? 'manut-content' : (tab === 'supr' ? 'sup-precisamos' : 'financas-content')).style.display = 'block';
+        }
+    </script>
 </body>
 </html>
