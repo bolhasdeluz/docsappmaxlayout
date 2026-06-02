@@ -2707,6 +2707,276 @@ function syncFormFromCards() {
   });
 }
 
+
+// ============================================================
+// PREVIEW EDITOR — funções
+// ============================================================
+let previewDocumentos = [];
+
+function abrirPreview(docs) {
+  previewDocumentos = docs;
+  const area = document.getElementById('preview-doc-area');
+  if (!area) return;
+  area.innerHTML = '';
+
+  docs.forEach((doc, idx) => {
+    if (docs.length > 1) {
+      const lbl = document.createElement('div');
+      lbl.style.cssText = 'text-align:center;font-size:12px;font-weight:700;color:var(--purple);margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px;';
+      lbl.textContent = doc.title;
+      area.appendChild(lbl);
+    }
+    const page = document.createElement('div');
+    page.className = 'preview-page';
+    page.setAttribute('data-page', 'p.' + (idx + 1));
+    const editDiv = document.createElement('div');
+    editDiv.className = 'preview-content';
+    editDiv.contentEditable = 'true';
+    editDiv.innerHTML = doc.html;
+    page.appendChild(editDiv);
+    area.appendChild(page);
+  });
+
+  const titleEl = document.getElementById('preview-title');
+  if (titleEl) titleEl.textContent = docs.length > 1 ? `📄 Pré-visualização — ${docs.length} documentos` : `📄 ${docs[0]?.title || 'Pré-visualização'}`;
+
+  previewAtualizarContador();
+  document.getElementById('preview-modal').classList.add('visible');
+}
+
+function fecharPreview() {
+  document.getElementById('preview-modal').classList.remove('visible');
+}
+
+function previewAjustarFonte(size) {
+  document.querySelectorAll('.preview-content').forEach(el => el.style.fontSize = size);
+  previewAtualizarContador();
+}
+
+function previewAjustarEspacamento(lh) {
+  document.querySelectorAll('.preview-content').forEach(el => el.style.lineHeight = lh);
+}
+
+function previewAtualizarContador() {
+  const pages = document.querySelectorAll('.preview-page');
+  const el = document.getElementById('preview-pages');
+  if (el) el.textContent = pages.length + (pages.length > 1 ? ' documentos' : ' documento');
+}
+
+async function previewGerarPDF() {
+  if (typeof window.jspdf === 'undefined') { alert('jsPDF não carregou.'); return; }
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+  const pages = document.querySelectorAll('.preview-page .preview-content');
+  let pageCount = 0;
+
+  for (const page of pages) {
+    if (pageCount > 0) doc.addPage();
+    pageCount++;
+    const fontSize = parseFloat(page.style.fontSize) || 11;
+    const lineH = parseFloat(page.style.lineHeight) || 1.5;
+    const M = 20, W = 170;
+    let y = 20;
+
+    function renderEl(node) {
+      if (y > 272) { doc.addPage(); y = 20; pageCount++; }
+      if (node.nodeType === Node.TEXT_NODE) {
+        const t = node.textContent.replace(/\s+/g,' ');
+        if (!t.trim()) return;
+        doc.setFont('helvetica','normal'); doc.setFontSize(fontSize);
+        const lines = doc.splitTextToSize(t, W);
+        doc.text(lines, M, y, {align:'justify',maxWidth:W});
+        y += lines.length * (fontSize * 0.352 * lineH) + 1;
+      } else if (node.tagName === 'BR') {
+        y += fontSize * 0.352 * lineH * 0.5;
+      } else if (node.tagName === 'H1') {
+        doc.setFont('helvetica','bold'); doc.setFontSize(fontSize + 1);
+        const t = node.textContent.trim();
+        doc.text(t, 105, y, {align:'center'});
+        const tW = doc.getTextWidth(t);
+        doc.setLineWidth(0.3);
+        doc.line(105-tW/2, y+1, 105+tW/2, y+1);
+        y += (fontSize * 0.352 * lineH) + 6;
+        doc.setFont('helvetica','normal'); doc.setFontSize(fontSize);
+      } else if (node.tagName === 'B' || node.tagName === 'STRONG') {
+        doc.setFont('helvetica','bold');
+        const t = node.textContent.trim();
+        if (t) { const lines = doc.splitTextToSize(t, W); doc.text(lines, M, y); y += lines.length * (fontSize * 0.352 * lineH) + 2; }
+        doc.setFont('helvetica','normal');
+      } else if (node.tagName === 'P') {
+        node.childNodes.forEach(renderEl);
+        y += 2;
+      } else {
+        node.childNodes.forEach(renderEl);
+      }
+    }
+    page.childNodes.forEach(renderEl);
+  }
+
+  const filename = (previewDocumentos[0]?.title || 'documento').replace(/[^A-Z0-9 ]/gi,'_') + '.pdf';
+  doc.save(filename);
+  fecharPreview();
+  if (pageCount > 1) mostrarAviso2Paginas(filename.replace(/_/g,' ').replace('.pdf',''));
+}
+
+// ============================================================
+// GERADOR DE HTML PARA PREVIEW
+// ============================================================
+function gerarHTMLPreview(tipo) {
+  const isPF = tipo.includes('PF');
+  const isProc = tipo.includes('PROC');
+  const pjEnt  = entidadesExtraidas?.find(e => e.id === 'pj')  || null;
+  const repEnt = entidadesExtraidas?.find(e => e.id === 'rep') || null;
+  const g = (ent, key, fb) => {
+    const cardEl = ent ? document.getElementById('field_' + ent.id + '_' + key) : null;
+    if (cardEl && cardEl.value) return cardEl.value.toUpperCase();
+    if (ent?.campos?.[key]) return ent.campos[key].toString().toUpperCase();
+    return v(fb);
+  };
+  const p2on = document.getElementById('toggle_p2')?.checked || !!v('p2_nome');
+  const p3on = document.getElementById('toggle_p3')?.checked || !!v('p3_nome');
+  const s2on = document.getElementById('toggle_s2')?.checked;
+  const s3on = document.getElementById('toggle_s3')?.checked;
+  const p = (txt) => `<p style="margin:3px 0;">${txt}</p>`;
+  const b = (txt) => `<b>${txt}</b>`;
+
+  if (tipo === 'MENOR') {
+    const rep = entidadesExtraidas?.find(e => e.id === 'rep') || null;
+    const men = entidadesExtraidas?.find(e => e.id === 'men') || null;
+    const gR = (k,fb) => g(rep,k,fb); const gM = (k,fb) => g(men,k,fb);
+    const cR = gR('comp','r_comp'); const cM = gM('comp','m_comp');
+    const html = `<h1 style="text-align:center;text-decoration:underline;">TERMO DE AUTORIZAÇÃO E RESPONSABILIDADE</h1>
+${p(b('REPRESENTANTE LEGAL:'))} ${p('Nome: '+gR('nome','r_nome'))} ${p('Documento de Identificação (CPF): '+gR('cpf','r_cpf'))}
+${p('Endereço: '+gR('rua','r_rua')+', '+gR('num','r_num')+(cR?', '+cR:'')+',  '+gR('bairro','r_bairro')+' - '+gR('cid','r_cid')+'/'+gR('uf','r_uf')+' - '+gR('cep','r_cep'))}
+<br>${p(b('MENOR AUTORIZADO:'))} ${p('Nome: '+gM('nome','m_nome'))} ${p('Documento de Identificação (CPF): '+gM('cpf','m_cpf'))}
+${p('Endereço: '+gM('rua','m_rua')+', '+gM('num','m_num')+(cM?', '+cM:'')+',  '+gM('bairro','m_bairro')+' - '+gM('cid','m_cid')+'/'+gM('uf','m_uf')+' - '+gM('cep','m_cep'))}
+<br>${p('Este termo tem como objeto a autorização, desde o momento do credenciamento na Plataforma Appmax e por tempo indeterminado, pelo representante legal acima qualificado, para que o menor utilize a Plataforma, reconhecendo as diretrizes estabelecidas nos Termos de Uso e Política de Privacidade da Appmax, disponíveis no site oficial da Appmax https://appmax.com.br')}
+<br>${p('O representante legal, ao assinar este termo, se compromete a:')}
+${p('&nbsp;&nbsp;&nbsp;a) Supervisionar o uso da Plataforma Appmax (CNPJ nº 27.000.511/0001-60) pelo menor, orientando-o sobre as diretrizes de segurança e bom uso do ambiente digital.')}
+${p('&nbsp;&nbsp;&nbsp;b) Assumir integral responsabilidade por quaisquer ações realizadas pelo menor na plataforma, inclusive eventuais infrações aos Termos de Uso, inclusive por eventuais débitos que possam vir a surgir, em decorrência de chargebacks e estornos.')}
+${p('&nbsp;&nbsp;&nbsp;c) Arcar com eventuais danos ou prejuízos decorrentes do uso da plataforma pelo menor, isentando a Appmax de qualquer responsabilidade nesses casos.')}
+<br>${p('O representante legal declara que as informações fornecidas são verídicas e atualizadas, assumindo plena responsabilidade pela veracidade das mesmas.')}
+<br>${p('Local e Data: '+gR('cid','r_cid')+'/'+gR('uf','r_uf')+', '+dataExtenso())}
+<br><br>${p('Assinatura do Representante Legal: '+gR('nome','r_nome')+'<br>___________________________________________________')}`;
+    return [{ title: 'Termo de Menor — '+gM('nome','m_nome'), html }];
+  }
+
+  if (tipo === 'REVOG_PF') {
+    const p1e = `${v('p1_rua')}, ${v('p1_num')}${comp('p1_comp')}, ${v('p1_bairro')} - ${v('p1_cid')}/${v('p1_uf')} - CEP ${v('p1_cep')}`;
+    const s1e = `${v('s1_rua')}, ${v('s1_num')}${comp('s1_comp')}, ${v('s1_bairro')} - ${v('s1_cid')}/${v('s1_uf')} - CEP ${v('s1_cep')}`;
+    const html = `<h1 style="text-align:center;text-decoration:underline;">TERMO DE REVOGAÇÃO E CANCELAMENTO DE PROCURAÇÃO PARTICULAR</h1>
+${p(b('OUTORGANTE:'))} ${p('Nome: '+v('p1_nome'))} ${p('Nacionalidade: '+(v('p1_nac')||'BRASILEIRO(A)'))} ${p('CPF: '+v('p1_cpf'))} ${p('Endereço: '+p1e)}
+<br>${p(b('OUTORGADO:'))} ${p('Nome: '+v('s1_nome'))} ${p('Nacionalidade: '+(v('s1_nac')||'BRASILEIRO(A)'))} ${p('CPF: '+v('s1_cpf'))} ${p('Endereço: '+s1e)}
+<br>${p('Pelo presente instrumento, a OUTORGANTE, nos termos do art. 682 do Código Civil, vem formalmente revogar a procuração outorgada ao OUTORGADO, anteriormente conferida através do instrumento particular de mandato datado de '+getDataOriginal()+'.')}
+${p('Dessa forma, ficam desde já cancelados todos os poderes anteriormente conferidos ao OUTORGADO, declarando-se extinta a relação de mandato a partir da presente data, não podendo o OUTORGADO praticar quaisquer atos em nome da OUTORGANTE.')}
+<br>${p('Local e Data: '+v('p1_cid')+'/'+v('p1_uf')+', '+dataExtenso()+'.')}
+<br><br>${p('Assinatura do OUTORGANTE: '+v('p1_nome')+'<br>___________________________________________________')}`;
+    return [{ title: 'Revogação PF — '+v('p1_nome'), html }];
+  }
+
+  if (tipo === 'REVOG_PJ') {
+    const html = `<h1 style="text-align:center;text-decoration:underline;">TERMO DE REVOGAÇÃO E CANCELAMENTO DE PROCURAÇÃO PARTICULAR</h1>
+${p(b('OUTORGANTE:'))} ${p('Razão Social: '+v('pj_nome'))} ${p('CNPJ: '+v('pj_cnpj'))}
+${p('Endereço: '+v('pj_rua')+', '+v('pj_num')+(v('pj_comp')?' / '+v('pj_comp'):'')+', '+v('pj_bairro')+' - '+v('pj_cid')+'/'+v('pj_uf')+' - CEP '+v('pj_cep'))}
+${p('Representada neste ato por '+v('p1_nome')+', portador do CPF nº '+v('p1_cpf')+'.')}
+<br>${p(b('OUTORGADO:'))} ${p('Nome: '+v('s1_nome'))} ${p('CPF: '+v('s1_cpf'))} ${p('Endereço: '+v('s1_rua')+', '+v('s1_num')+', '+v('s1_bairro')+' - '+v('s1_cid')+'/'+v('s1_uf')+' - CEP '+v('s1_cep'))}
+<br>${p('Pelo presente instrumento, a OUTORGANTE, nos termos do art. 682 do Código Civil, vem formalmente revogar a procuração outorgada ao OUTORGADO, anteriormente conferida através do instrumento particular de mandato datado de '+getDataOriginal()+'.')}
+${p('Dessa forma, ficam desde já cancelados todos os poderes anteriormente conferidos ao OUTORGADO, declarando-se extinta a relação de mandato a partir da presente data.')}
+<br>${p('Local e Data: '+v('pj_cid')+'/'+v('pj_uf')+', '+dataExtenso()+'.')}
+<br><br>${p('Assinatura do Outorgante: '+v('p1_nome')+'<br>___________________________________________________')}`;
+    return [{ title: 'Revogação PJ — '+v('pj_nome'), html }];
+  }
+
+  if (tipo === 'SAQUE') {
+    const razao = g(pjEnt,'nome','pj_nome'), cnpj2 = g(pjEnt,'cnpj','pj_cnpj');
+    const rua2 = g(pjEnt,'rua','pj_rua'), num2 = g(pjEnt,'num','pj_num');
+    const comp2 = g(pjEnt,'comp','pj_comp'), bairro2 = g(pjEnt,'bairro','pj_bairro');
+    const cidade2 = g(pjEnt,'cid','pj_cid'), uf2 = g(pjEnt,'uf','pj_uf'), cep2 = g(pjEnt,'cep','pj_cep');
+    const repNome2 = g(repEnt,'nome','p1_nome'), repCpf2 = g(repEnt,'cpf','p1_cpf');
+    const compStr2 = comp2 && comp2 !== '-' ? ' - '+comp2 : '';
+    const val1 = sqV('sq_v1','sq_valor1'), ext1 = sqV('sq_e1','sq_extenso1');
+    const val2 = sqV('sq_v2','sq_valor2'), ext2 = sqV('sq_e2','sq_extenso2');
+    const v2s = val2 ? ` E ${val2} (${ext2})` : '';
+    const html = `<h1 style="text-align:center;text-decoration:underline;">TERMO DE AUTORIZAÇÃO E QUITAÇÃO</h1>
+${p(b('AUTORIZANTE:'))} ${p('Razão Social: '+razao)} ${p('CNPJ: '+cnpj2)}
+${p('Endereço: '+rua2+', '+num2+compStr2+', '+bairro2+' - '+cidade2+'/'+uf2+' - CEP '+cep2)}
+${p('Representante legal: '+repNome2+', portador do CPF n.º '+repCpf2)}
+<br>${p(b('Considerando que:'))}
+${p('- O Autorizante era credenciado na Plataforma APPMAX (CNPJ nº 27.000.511/0001-60), com sede na Travessa São José, nº 455, sala 74, Navegantes, Porto Alegre–RS, CEP 90240-200;')}
+${p('- O CNPJ do Autorizante encontra-se atualmente baixado perante a Receita Federal do Brasil, impossibilitando o recebimento de valores em sua conta bancária anteriormente vinculada;')}
+${p('- Por obrigação regulatória, a APPMAX deve realizar os repasses financeiros exclusivamente para o domicílio bancário do beneficiário final das transações realizadas;')}
+${p('- Em razão da inatividade da conta-corrente vinculada ao CNPJ, faz-se necessária uma alternativa segura para efetivar o pagamento dos valores devidos;')}
+<br>${p('O autorizante autoriza expressamente que a APPMAX realize o depósito para saque '+val1+' ('+ext1+')'+v2s+' referente às transações realizadas pela empresa anteriormente à sua baixa, na seguinte conta:')}
+${p('- CPF: '+sqV('sq_cpfconta','sq_cpf_conta')+'&nbsp;&nbsp;- Tipo: '+sqV('sq_tipoconta','sq_tipo_conta'))}
+${p('- Banco: '+sqV('sq_banco2','sq_banco')+'&nbsp;&nbsp;- Agência: '+sqV('sq_agencia2','sq_agencia')+'&nbsp;&nbsp;- Conta: '+sqV('sq_conta2','sq_conta')+'&nbsp;&nbsp;- PIX: '+sqV('sq_pix2','sq_pix'))}
+<br>${p('O AUTORIZANTE declara estar ciente dos Termos de Uso da APPMAX (https://appmax.com.br/termos-de-uso) e que o seu representante legal é o mesmo do período em que as transações ocorreram e que os valores ora pagos são devidos à referida pessoa jurídica.')}
+${p('Ao receber os valores acima especificados, o AUTORIZANTE dá plena, geral e irrevogável quitação à APPMAX, nada mais tendo a reclamar, judicial ou extrajudicialmente, a esse título.')}
+${p('O AUTORIZANTE isenta a APPMAX de qualquer responsabilidade por eventuais disputas societárias, fiscais, tributárias ou de qualquer natureza, relacionadas à destinação dos valores pagos neste termo.')}
+${p('Este termo tem caráter excepcional e não gera obrigação futura da APPMAX em realizar depósitos fora das regras do arranjo de pagamento vigente, nem constitui novação contratual. E por estarem de pleno acordo, firmam o presente termo no formato digital.')}
+<br>${p(cidade2+'/'+uf2+', '+dataExtenso())}`;
+    return [{ title: 'Termo Saque — '+razao, html }];
+  }
+
+  // PJ / PF
+  const buildDoc = (t) => {
+    const isP = t.includes('PROC'), isF = t.includes('PF');
+    const titulo2 = isP ? 'PROCURAÇÃO PARTICULAR' : 'TERMO DE RESPONSABILIDADE';
+    const lblOut = isP ? 'OUTORGANTE:' : 'PARCEIRO:';
+    const lblS   = isP ? 'OUTORGADO:' : 'TERCEIRO OPERADOR:';
+    let h = `<h1 style="text-align:center;text-decoration:underline;">${titulo2}</h1>\n`;
+    h += p(b(lblOut));
+    if (isF) {
+      h += p('Nome: '+v('p1_nome'))+p('Nacionalidade: '+v('p1_nac'))+p('CPF: '+v('p1_cpf'));
+      h += p('Endereço: '+v('p1_rua')+', '+v('p1_num')+(v('p1_comp')?' / '+v('p1_comp'):'')+', '+v('p1_bairro')+' - '+v('p1_cid')+'/'+v('p1_uf')+' - CEP '+v('p1_cep'));
+    } else {
+      h += p('Razão Social: '+v('pj_nome'))+p('CNPJ: '+v('pj_cnpj'));
+      h += p('Endereço: '+v('pj_rua')+', '+v('pj_num')+(v('pj_comp')?' / '+v('pj_comp'):'')+', '+v('pj_bairro')+' - '+v('pj_cid')+'/'+v('pj_uf')+' - CEP '+v('pj_cep'));
+      let rep = 'Representada neste ato por seu representante legal, '+v('p1_nome')+', portador do CPF nº '+v('p1_cpf');
+      if (p2on) rep += ', '+v('p2_nome')+', portador do CPF nº '+v('p2_cpf');
+      if (p3on) rep += ' e '+v('p3_nome')+', portador do CPF nº '+v('p3_cpf');
+      h += p(rep+'.');
+    }
+    h += '<br>'+p(b(lblS));
+    ['s1', s2on?'s2':null, s3on?'s3':null].filter(Boolean).forEach(pre => {
+      if (!v(pre+'_nome')) return;
+      h += p('Nome: '+v(pre+'_nome'))+p('Nacionalidade: '+v(pre+'_nac'))+p('CPF: '+v(pre+'_cpf'));
+      h += p('Endereço: '+v(pre+'_rua')+', '+v(pre+'_num')+(v(pre+'_comp')?' / '+v(pre+'_comp'):'')+', '+v(pre+'_bairro')+' - '+v(pre+'_cid')+'/'+v(pre+'_uf')+' - CEP '+v(pre+'_cep'));
+      h += '<br>';
+    });
+    if (isP) {
+      h += '<br>'+p(b('PODERES:'));
+      h += p('Pelo presente instrumento particular de mandato, a OUTORGANTE, através de seu representante legal, nomeia e constitui como seu legítimo representante o OUTORGADO, conferindo-lhe poderes para: Acessar, gerir, administrar e realizar todos os negócios que sejam de interesse da Outorgante, relacionados à Plataforma Appmax (CNPJ nº 27.000.511/0001-60), incluindo a realização de saques; Representar a Outorgante em todos os atos em que seja necessária sua presença ou intervenção como negociante; Requerer e defender os direitos e interesses da Outorgante perante terceiros; Assumir responsabilidades perante terceiros, na forma do art. 1.022 do Código Civil; Praticar todos os atos indispensáveis ao desempenho deste mandato, utilizando os poderes necessários em Direito permitidos. O presente mandato é concedido por prazo indeterminado, podendo ser revogado a qualquer momento pela Outorgante mediante comunicação formal, com a devida ciência a terceiros interessados.');
+    } else {
+      h += '<br>'+p('Este Termo de Responsabilidade tem por objeto a utilização da plataforma Appmax (CNPJ nº 27.000.511/0001-60) pelo Terceiro Operador acima identificado, em nome do Parceiro, conforme as diretrizes estabelecidas nos Termos de Uso e Política de Privacidade da Appmax, disponíveis no site oficial https://appmax.com.br');
+      h += p('O Terceiro Operador declara que leu, compreendeu e concorda integralmente com os Termos de Uso e a Política de Privacidade da Appmax, comprometendo-se a respeitá-los durante toda a operação da plataforma.');
+      h += p('Em caso de desligamento ou substituição do Terceiro Operador, o Parceiro compromete-se a notificar a Appmax imediatamente, fornecendo as devidas revogações e/ou novas autorizações, além de proceder à alteração de login e senha para evitar acessos indevidos.');
+      h += p('Este Termo de Responsabilidade entra em vigor na data de sua assinatura e permanecerá válido enquanto o Parceiro tiver acesso autorizado à Plataforma Appmax, ou até que seja formalmente revogado pelo Parceiro.');
+    }
+    const loc = isF ? v('p1_cid')+'/'+v('p1_uf') : v('pj_cid')+'/'+v('pj_uf');
+    h += '<br>'+p('Local e Data: '+loc+', '+dataExtenso()+'.');
+    h += '<br><br>';
+    const lblAs = isP ? 'Assinatura do Outorgante:' : 'Assinatura do PARCEIRO:';
+    h += p(lblAs+' '+v('p1_nome')+'<br>___________________________________________________');
+    if (!isF && p2on) h += '<br>'+p(lblAs+' '+v('p2_nome')+'<br>___________________________________________________');
+    if (!isF && p3on) h += '<br>'+p(lblAs+' '+v('p3_nome')+'<br>___________________________________________________');
+    if (!isP || isF) {
+      const lblS2 = isP ? 'Assinatura do OUTORGADO:' : 'Assinatura do TERCEIRO OPERADOR:';
+      h += '<br>'+p(lblS2+' '+v('s1_nome')+'<br>___________________________________________________');
+      if (s2on) h += '<br>'+p(lblS2+' '+v('s2_nome')+'<br>___________________________________________________');
+      if (s3on) h += '<br>'+p(lblS2+' '+v('s3_nome')+'<br>___________________________________________________');
+    }
+    const nomePrincipal = isF ? v('p1_nome') : v('pj_nome');
+    return { title: (isP?'Procuração':'Termo')+' — '+nomePrincipal, html: h };
+  };
+
+  if (tipo === 'PROC_PJ') return [buildDoc('PROC_PJ')];
+  if (tipo === 'TERMO_PJ') return [buildDoc('TERMO_PJ')];
+  if (tipo === 'PROC_PF') return [buildDoc('PROC_PF')];
+  if (tipo === 'TERMO_PF') return [buildDoc('TERMO_PF')];
+  return [buildDoc(tipo)];
+}
+
+
 function gerarDocumentos() {
   syncFormFromCards(); // Always sync cards → form before generating
   if (formatoAtual === 'preview') {
