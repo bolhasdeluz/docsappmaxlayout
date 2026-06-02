@@ -751,8 +751,7 @@
     </div>
 
     <div class="format-bar" style="margin-top:16px;">
-      <button class="format-btn pdf" onclick="confirmarFormato('pdf','review')">📄 Baixar PDF</button>
-      <button class="format-btn word" onclick="confirmarFormato('docx','review')">🔍 Revisar & Editar</button>
+      <button class="format-btn word" style="background:var(--purple);" onclick="confirmarFormato('docx','review')">🔍 Revisar & Editar antes de gerar</button>
     </div>
   </div>
 
@@ -771,8 +770,7 @@
     </div>
     <div class="btn-row" style="margin-top:16px;">
       <div class="format-bar">
-        <button class="format-btn pdf" onclick="confirmarFormato('pdf','pendencias')">📄 Baixar PDF mesmo assim</button>
-        <button class="format-btn word" onclick="confirmarFormato('docx','pendencias')">🔍 Revisar & Editar</button>
+        <button class="format-btn word" style="background:var(--purple);" onclick="confirmarFormato('docx','pendencias')">🔍 Revisar & Editar</button>
       </div>
     </div>
   </div>
@@ -963,8 +961,7 @@
     </div>
 
     <div class="format-bar" style="margin-top:16px;">
-      <button class="format-btn pdf" onclick="confirmarFormato('pdf','form')">📄 Baixar PDF</button>
-      <button class="format-btn word" onclick="confirmarFormato('docx','form')">🔍 Revisar & Editar</button>
+      <button class="format-btn word" style="background:var(--purple);" onclick="confirmarFormato('docx','form')">🔍 Revisar & Editar antes de gerar</button>
     </div>
   </div>
 
@@ -2478,16 +2475,10 @@ let formatPendingAction = null;
 let formatoAtual = 'pdf'; // 'pdf' or 'txt'
 
 function confirmarFormato(formato, acao) {
-  formatoAtual = formato;
-  if (formato === 'docx') {
-    // Open preview instead of downloading Word
-    formatoAtual = 'preview';
-    if (acao === 'review') gerarDocsFromReview();
-    else gerarDocumentos();
-  } else {
-    if (acao === 'review') gerarDocsFromReview();
-    else gerarDocumentos();
-  }
+  // Always open preview first — PDF is generated from inside the preview
+  formatoAtual = 'preview';
+  if (acao === 'review') gerarDocsFromReview();
+  else gerarDocumentos();
 }
 
 // maskMoeda for inline banking fields in review screen
@@ -2719,14 +2710,20 @@ function syncFormFromCards() {
 function gerarDocumentos() {
   syncFormFromCards(); // Always sync cards → form before generating
   if (formatoAtual === 'preview') {
-    let docs = [];
-    if (docAtual === 'MENOR') docs = gerarHTMLPreview('MENOR');
-    else if (docAtual === 'SAQUE') docs = gerarHTMLPreview('SAQUE');
-    else if (docAtual === 'REVOG_PF') docs = gerarHTMLPreview('REVOG_PF');
-    else if (docAtual === 'REVOG_PJ') docs = gerarHTMLPreview('REVOG_PJ');
-    else if (docAtual === 'PJ') docs = [...gerarHTMLPreview('PROC_PJ'), ...gerarHTMLPreview('TERMO_PJ')];
-    else if (docAtual === 'PF') docs = [...gerarHTMLPreview('PROC_PF'), ...gerarHTMLPreview('TERMO_PF')];
-    if (docs.length) abrirPreview(docs);
+    try {
+      let docs = [];
+      if (docAtual === 'MENOR')    docs = gerarHTMLPreview('MENOR');
+      else if (docAtual === 'SAQUE')    docs = gerarHTMLPreview('SAQUE');
+      else if (docAtual === 'REVOG_PF') docs = gerarHTMLPreview('REVOG_PF');
+      else if (docAtual === 'REVOG_PJ') docs = gerarHTMLPreview('REVOG_PJ');
+      else if (docAtual === 'PJ')  docs = [...gerarHTMLPreview('PROC_PJ'), ...gerarHTMLPreview('TERMO_PJ')];
+      else if (docAtual === 'PF')  docs = [...gerarHTMLPreview('PROC_PF'), ...gerarHTMLPreview('TERMO_PF')];
+      if (docs.length) abrirPreview(docs);
+      else alert('Tipo de documento não suportado na pré-visualização.');
+    } catch(e) {
+      console.error('Erro no preview:', e);
+      alert('Erro ao abrir pré-visualização: ' + e.message);
+    }
     return;
   }
   if (formatoAtual === 'docx') {
@@ -2820,6 +2817,38 @@ function gerarDocx(tipo) {
     html += `<p class="sig">Assinatura do Representante Legal: ${gR('nome','r_nome')}<br><br>___________________________________________________</p>`;
     baixarDoc(html, `TERMO_MENOR_${getNomePrincipal().replace(/[^A-Z0-9]/g,'_')}.doc`);
     return;
+  }
+
+  if (tipo === 'REVOG_PF') {
+    const p1Nome = v('p1_nome'), p1Cpf = v('p1_cpf'), p1Nac = v('p1_nac')||'BRASILEIRO(A)';
+    const p1End = `${v('p1_rua')}, ${v('p1_num')}${comp('p1_comp')}, ${v('p1_bairro')} - ${v('p1_cid')}/${v('p1_uf')} - CEP ${v('p1_cep')}`;
+    const s1Nome = v('s1_nome'), s1Cpf = v('s1_cpf'), s1Nac = v('s1_nac')||'BRASILEIRO(A)';
+    const s1End = `${v('s1_rua')}, ${v('s1_num')}${comp('s1_comp')}, ${v('s1_bairro')} - ${v('s1_cid')}/${v('s1_uf')} - CEP ${v('s1_cep')}`;
+    const html = `<h1 style="text-align:center;font-size:inherit;text-decoration:underline;">TERMO DE REVOGAÇÃO E CANCELAMENTO DE PROCURAÇÃO PARTICULAR</h1>
+${p(b('OUTORGANTE:'))}
+${p('Nome: '+p1Nome)} ${p('Nacionalidade: '+p1Nac)} ${p('CPF: '+p1Cpf)} ${p('Endereço: '+p1End)}
+<br>${p(b('OUTORGADO:'))}
+${p('Nome: '+s1Nome)} ${p('Nacionalidade: '+s1Nac)} ${p('CPF: '+s1Cpf)} ${p('Endereço: '+s1End)}
+<br>${p('Pelo presente instrumento, a OUTORGANTE, nos termos do art. 682 do Código Civil, vem formalmente revogar a procuração outorgada ao OUTORGADO, anteriormente conferida através do instrumento particular de mandato datado de '+getDataOriginal()+'.')}
+${p('Dessa forma, ficam desde já cancelados todos os poderes anteriormente conferidos ao OUTORGADO, declarando-se extinta a relação de mandato a partir da presente data, não podendo o OUTORGADO praticar quaisquer atos em nome da OUTORGANTE.')}
+<br>${p('Local e Data: '+v('p1_cid')+'/'+v('p1_uf')+', '+dataExtenso()+'.')}
+<br><br>${p('Assinatura do OUTORGANTE: '+p1Nome)} ${p('___________________________________________________')}`;
+    return [{ title: 'Revogação PF — '+p1Nome, html }];
+  }
+
+  if (tipo === 'REVOG_PJ') {
+    const html = `<h1 style="text-align:center;font-size:inherit;text-decoration:underline;">TERMO DE REVOGAÇÃO E CANCELAMENTO DE PROCURAÇÃO PARTICULAR</h1>
+${p(b('OUTORGANTE:'))}
+${p('Razão Social: '+v('pj_nome'))} ${p('CNPJ: '+v('pj_cnpj'))}
+${p('Endereço: '+v('pj_rua')+', '+v('pj_num')+(v('pj_comp')?' / '+v('pj_comp'):'')+', '+v('pj_bairro')+' - '+v('pj_cid')+'/'+v('pj_uf')+' - CEP '+v('pj_cep'))}
+${p('Representada neste ato por '+v('p1_nome')+', portador do CPF nº '+v('p1_cpf')+'.')}
+<br>${p(b('OUTORGADO:'))}
+${p('Nome: '+v('s1_nome'))} ${p('CPF: '+v('s1_cpf'))} ${p('Endereço: '+v('s1_rua')+', '+v('s1_num')+', '+v('s1_bairro')+' - '+v('s1_cid')+'/'+v('s1_uf')+' - CEP '+v('s1_cep'))}
+<br>${p('Pelo presente instrumento, a OUTORGANTE, nos termos do art. 682 do Código Civil, vem formalmente revogar a procuração outorgada ao OUTORGADO, anteriormente conferida através do instrumento particular de mandato datado de '+getDataOriginal()+'.')}
+${p('Dessa forma, ficam desde já cancelados todos os poderes anteriormente conferidos ao OUTORGADO, declarando-se extinta a relação de mandato a partir da presente data, não podendo o OUTORGADO praticar quaisquer atos em nome da OUTORGANTE.')}
+<br>${p('Local e Data: '+v('pj_cid')+'/'+v('pj_uf')+', '+dataExtenso()+'.')}
+<br><br>${p('Assinatura do Outorgante: '+v('p1_nome'))} ${p('___________________________________________________')}`;
+    return [{ title: 'Revogação PJ — '+v('pj_nome'), html }];
   }
 
   if (tipo === 'SAQUE') {
@@ -3148,6 +3177,38 @@ function gerarPDF(tipo) {
   }
 
   // ---- SAQUE ----
+  if (tipo === 'REVOG_PF') {
+    const p1Nome = v('p1_nome'), p1Cpf = v('p1_cpf'), p1Nac = v('p1_nac')||'BRASILEIRO(A)';
+    const p1End = `${v('p1_rua')}, ${v('p1_num')}${comp('p1_comp')}, ${v('p1_bairro')} - ${v('p1_cid')}/${v('p1_uf')} - CEP ${v('p1_cep')}`;
+    const s1Nome = v('s1_nome'), s1Cpf = v('s1_cpf'), s1Nac = v('s1_nac')||'BRASILEIRO(A)';
+    const s1End = `${v('s1_rua')}, ${v('s1_num')}${comp('s1_comp')}, ${v('s1_bairro')} - ${v('s1_cid')}/${v('s1_uf')} - CEP ${v('s1_cep')}`;
+    const html = `<h1 style="text-align:center;font-size:inherit;text-decoration:underline;">TERMO DE REVOGAÇÃO E CANCELAMENTO DE PROCURAÇÃO PARTICULAR</h1>
+${p(b('OUTORGANTE:'))}
+${p('Nome: '+p1Nome)} ${p('Nacionalidade: '+p1Nac)} ${p('CPF: '+p1Cpf)} ${p('Endereço: '+p1End)}
+<br>${p(b('OUTORGADO:'))}
+${p('Nome: '+s1Nome)} ${p('Nacionalidade: '+s1Nac)} ${p('CPF: '+s1Cpf)} ${p('Endereço: '+s1End)}
+<br>${p('Pelo presente instrumento, a OUTORGANTE, nos termos do art. 682 do Código Civil, vem formalmente revogar a procuração outorgada ao OUTORGADO, anteriormente conferida através do instrumento particular de mandato datado de '+getDataOriginal()+'.')}
+${p('Dessa forma, ficam desde já cancelados todos os poderes anteriormente conferidos ao OUTORGADO, declarando-se extinta a relação de mandato a partir da presente data, não podendo o OUTORGADO praticar quaisquer atos em nome da OUTORGANTE.')}
+<br>${p('Local e Data: '+v('p1_cid')+'/'+v('p1_uf')+', '+dataExtenso()+'.')}
+<br><br>${p('Assinatura do OUTORGANTE: '+p1Nome)} ${p('___________________________________________________')}`;
+    return [{ title: 'Revogação PF — '+p1Nome, html }];
+  }
+
+  if (tipo === 'REVOG_PJ') {
+    const html = `<h1 style="text-align:center;font-size:inherit;text-decoration:underline;">TERMO DE REVOGAÇÃO E CANCELAMENTO DE PROCURAÇÃO PARTICULAR</h1>
+${p(b('OUTORGANTE:'))}
+${p('Razão Social: '+v('pj_nome'))} ${p('CNPJ: '+v('pj_cnpj'))}
+${p('Endereço: '+v('pj_rua')+', '+v('pj_num')+(v('pj_comp')?' / '+v('pj_comp'):'')+', '+v('pj_bairro')+' - '+v('pj_cid')+'/'+v('pj_uf')+' - CEP '+v('pj_cep'))}
+${p('Representada neste ato por '+v('p1_nome')+', portador do CPF nº '+v('p1_cpf')+'.')}
+<br>${p(b('OUTORGADO:'))}
+${p('Nome: '+v('s1_nome'))} ${p('CPF: '+v('s1_cpf'))} ${p('Endereço: '+v('s1_rua')+', '+v('s1_num')+', '+v('s1_bairro')+' - '+v('s1_cid')+'/'+v('s1_uf')+' - CEP '+v('s1_cep'))}
+<br>${p('Pelo presente instrumento, a OUTORGANTE, nos termos do art. 682 do Código Civil, vem formalmente revogar a procuração outorgada ao OUTORGADO, anteriormente conferida através do instrumento particular de mandato datado de '+getDataOriginal()+'.')}
+${p('Dessa forma, ficam desde já cancelados todos os poderes anteriormente conferidos ao OUTORGADO, declarando-se extinta a relação de mandato a partir da presente data, não podendo o OUTORGADO praticar quaisquer atos em nome da OUTORGANTE.')}
+<br>${p('Local e Data: '+v('pj_cid')+'/'+v('pj_uf')+', '+dataExtenso()+'.')}
+<br><br>${p('Assinatura do Outorgante: '+v('p1_nome'))} ${p('___________________________________________________')}`;
+    return [{ title: 'Revogação PJ — '+v('pj_nome'), html }];
+  }
+
   if (tipo === 'SAQUE') {
     // Pega dados da empresa/rep dos cards se disponível
     const pjEnt  = entidadesExtraidas ? entidadesExtraidas.find(e => e.id === 'pj')  : null;
