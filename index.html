@@ -2720,15 +2720,18 @@ function abrirPreview(docs) {
   area.innerHTML = '';
 
   docs.forEach((doc, idx) => {
-    if (docs.length > 1) {
-      const lbl = document.createElement('div');
-      lbl.style.cssText = 'text-align:center;font-size:12px;font-weight:700;color:var(--purple);margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px;';
-      lbl.textContent = doc.title;
-      area.appendChild(lbl);
-    }
+    // Label separador entre documentos
+    const lbl = document.createElement('div');
+    lbl.style.cssText = 'text-align:center;font-size:11px;font-weight:700;color:var(--purple);margin:' + (idx===0?'0':'24px') + ' 0 8px;text-transform:uppercase;letter-spacing:.5px;padding:6px 12px;background:var(--purple-dim);border-radius:6px;display:inline-block;width:100%;box-sizing:border-box;';
+    lbl.textContent = (idx+1) + '. ' + doc.title;
+    area.appendChild(lbl);
+
+    // Each doc gets its own page div — ONE page per document in preview
     const page = document.createElement('div');
     page.className = 'preview-page';
-    page.setAttribute('data-page', 'p.' + (idx + 1));
+    page.setAttribute('data-doc-idx', idx);
+    page.setAttribute('data-title', doc.title);
+
     const editDiv = document.createElement('div');
     editDiv.className = 'preview-content';
     editDiv.contentEditable = 'true';
@@ -2738,7 +2741,9 @@ function abrirPreview(docs) {
   });
 
   const titleEl = document.getElementById('preview-title');
-  if (titleEl) titleEl.textContent = docs.length > 1 ? `📄 Pré-visualização — ${docs.length} documentos` : `📄 ${docs[0]?.title || 'Pré-visualização'}`;
+  if (titleEl) titleEl.textContent = docs.length > 1
+    ? `📄 Pré-visualização — ${docs.length} documentos separados`
+    : `📄 ${docs[0]?.title || 'Pré-visualização'}`;
 
   previewAtualizarContador();
   document.getElementById('preview-modal').classList.add('visible');
@@ -2760,49 +2765,71 @@ function previewAjustarEspacamento(lh) {
 function previewAtualizarContador() {
   const pages = document.querySelectorAll('.preview-page');
   const el = document.getElementById('preview-pages');
-  if (el) el.textContent = pages.length + (pages.length > 1 ? ' documentos' : ' documento');
+  if (!el) return;
+  if (pages.length > 1) {
+    el.textContent = pages.length + ' documentos · PDF separados';
+  } else {
+    // Estimate pages based on content height
+    const page = pages[0];
+    if (page) {
+      const contentH = page.querySelector('.preview-content')?.scrollHeight || 0;
+      const pageH = 1050; // ~297mm at 96dpi
+      const estimatedPages = Math.ceil(contentH / pageH);
+      el.textContent = estimatedPages > 1 ? `⚠️ ~${estimatedPages} páginas` : '1 página';
+      if (estimatedPages > 1) el.style.background = '#fee2e2'; else el.style.background = '';
+    }
+  }
 }
 
 async function previewGerarPDF() {
   if (typeof window.jspdf === 'undefined') { alert('jsPDF não carregou.'); return; }
   const { jsPDF } = window.jspdf;
-  const doc = new jsPDF({ unit: 'mm', format: 'a4' });
-  const pages = document.querySelectorAll('.preview-page .preview-content');
-  let pageCount = 0;
 
-  for (const page of pages) {
-    if (pageCount > 0) doc.addPage();
-    pageCount++;
-    const fontSize = parseFloat(page.style.fontSize) || 11;
-    const lineH = parseFloat(page.style.lineHeight) || 1.5;
+  // Each .preview-page is a separate document — generate one PDF per doc
+  const docPages = document.querySelectorAll('.preview-page');
+  if (!docPages.length) return;
+
+  let docIdx = 0;
+  for (const docPage of docPages) {
+    const editDiv = docPage.querySelector('.preview-content');
+    if (!editDiv) continue;
+
+    const pdfDoc = new jsPDF({ unit: 'mm', format: 'a4' });
+    const fontSize = parseFloat(editDiv.style.fontSize) || 11;
+    const lineH    = parseFloat(editDiv.style.lineHeight) || 1.5;
     const M = 20, W = 170;
     let y = 20;
+    let pageCount = 1;
 
     function renderEl(node) {
-      if (y > 272) { doc.addPage(); y = 20; pageCount++; }
+      if (y > 272) { pdfDoc.addPage(); y = 20; pageCount++; }
       if (node.nodeType === Node.TEXT_NODE) {
         const t = node.textContent.replace(/\s+/g,' ');
         if (!t.trim()) return;
-        doc.setFont('helvetica','normal'); doc.setFontSize(fontSize);
-        const lines = doc.splitTextToSize(t, W);
-        doc.text(lines, M, y, {align:'justify',maxWidth:W});
+        pdfDoc.setFont('helvetica','normal'); pdfDoc.setFontSize(fontSize);
+        const lines = pdfDoc.splitTextToSize(t, W);
+        pdfDoc.text(lines, M, y, {align:'justify',maxWidth:W});
         y += lines.length * (fontSize * 0.352 * lineH) + 1;
       } else if (node.tagName === 'BR') {
-        y += fontSize * 0.352 * lineH * 0.5;
+        y += fontSize * 0.352 * lineH * 0.6;
       } else if (node.tagName === 'H1') {
-        doc.setFont('helvetica','bold'); doc.setFontSize(fontSize + 1);
+        pdfDoc.setFont('helvetica','bold'); pdfDoc.setFontSize(fontSize + 1);
         const t = node.textContent.trim();
-        doc.text(t, 105, y, {align:'center'});
-        const tW = doc.getTextWidth(t);
-        doc.setLineWidth(0.3);
-        doc.line(105-tW/2, y+1, 105+tW/2, y+1);
+        pdfDoc.text(t, 105, y, {align:'center'});
+        const tW = pdfDoc.getTextWidth(t);
+        pdfDoc.setLineWidth(0.3);
+        pdfDoc.line(105-tW/2, y+1, 105+tW/2, y+1);
         y += (fontSize * 0.352 * lineH) + 6;
-        doc.setFont('helvetica','normal'); doc.setFontSize(fontSize);
+        pdfDoc.setFont('helvetica','normal'); pdfDoc.setFontSize(fontSize);
       } else if (node.tagName === 'B' || node.tagName === 'STRONG') {
-        doc.setFont('helvetica','bold');
+        pdfDoc.setFont('helvetica','bold');
         const t = node.textContent.trim();
-        if (t) { const lines = doc.splitTextToSize(t, W); doc.text(lines, M, y); y += lines.length * (fontSize * 0.352 * lineH) + 2; }
-        doc.setFont('helvetica','normal');
+        if (t) {
+          const lines = pdfDoc.splitTextToSize(t, W);
+          pdfDoc.text(lines, M, y);
+          y += lines.length * (fontSize * 0.352 * lineH) + 2;
+        }
+        pdfDoc.setFont('helvetica','normal');
       } else if (node.tagName === 'P') {
         node.childNodes.forEach(renderEl);
         y += 2;
@@ -2810,13 +2837,22 @@ async function previewGerarPDF() {
         node.childNodes.forEach(renderEl);
       }
     }
-    page.childNodes.forEach(renderEl);
+
+    editDiv.childNodes.forEach(renderEl);
+
+    const docTitle = docPage.getAttribute('data-title') ||
+                     (previewDocumentos[docIdx]?.title) ||
+                     'documento';
+    const filename = docTitle.replace(/[^A-Z0-9 ]/gi,'_').replace(/\s+/g,'_') + '.pdf';
+    pdfDoc.save(filename);
+    if (pageCount > 1) mostrarAviso2Paginas(docTitle);
+    docIdx++;
+
+    // Small delay between multiple downloads
+    if (docPages.length > 1) await new Promise(r => setTimeout(r, 600));
   }
 
-  const filename = (previewDocumentos[0]?.title || 'documento').replace(/[^A-Z0-9 ]/gi,'_') + '.pdf';
-  doc.save(filename);
   fecharPreview();
-  if (pageCount > 1) mostrarAviso2Paginas(filename.replace(/_/g,' ').replace('.pdf',''));
 }
 
 // ============================================================
